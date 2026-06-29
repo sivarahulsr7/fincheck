@@ -79,29 +79,30 @@ export default function App() {
   if (!user) return <LoginScreen />
   if (loading) return <Splash />
 
+  const BackHeader = ({ onBack }) => (
+    <div className="flex items-center gap-3 px-4 pb-2 flex-shrink-0"
+         style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
+      <button onClick={onBack} className="text-green text-sm font-medium">← Back</button>
+    </div>
+  )
+
   if (innerPage === 'goals') return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2 flex-shrink-0">
-        <button onClick={() => setInnerPage(null)} className="text-green text-sm font-medium">← Back</button>
-      </div>
+      <BackHeader onBack={() => setInnerPage(null)} />
       <Goals />
     </div>
   )
 
   if (innerPage === 'settings') return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2 flex-shrink-0">
-        <button onClick={() => setInnerPage(null)} className="text-green text-sm font-medium">← Back</button>
-      </div>
+      <BackHeader onBack={() => setInnerPage(null)} />
       <Settings />
     </div>
   )
 
   if (innerPage === 'import') return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2 flex-shrink-0">
-        <button onClick={() => setInnerPage(null)} className="text-green text-sm font-medium">← Back</button>
-      </div>
+      <BackHeader onBack={() => setInnerPage(null)} />
       <Import />
     </div>
   )
