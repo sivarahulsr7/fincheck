@@ -117,17 +117,19 @@ export default function Settings({ onBack }) {
         },
       ]
     },
-    ...(investmentCount > 0 ? [{
+    {
       group: 'Data',
       items: [
         {
           icon: <TrendingUp size={16} className="text-green" />,
           label: 'Convert Investment Expenses',
-          sublabel: `${investmentCount} investment transaction${investmentCount !== 1 ? 's' : ''} → Assets`,
+          sublabel: investmentCount > 0
+            ? `${investmentCount} investment transaction${investmentCount !== 1 ? 's' : ''} → Assets`
+            : 'No investment expenses found',
           action: () => setShowMigrate(true),
         },
       ]
-    }] : []),
+    },
     {
       group: 'About',
       items: [
@@ -197,6 +199,12 @@ export default function Settings({ onBack }) {
               className="w-full py-3.5 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
               Done
             </button>
+          </div>
+        ) : investmentCount === 0 ? (
+          <div className="flex flex-col gap-4">
+            <p className="text-gray-400 text-sm">No transactions with the "Investment" expense category were found.</p>
+            <button onClick={() => setShowMigrate(false)}
+              className="w-full py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Close</button>
           </div>
         ) : (
           <div className="flex flex-col gap-4">
