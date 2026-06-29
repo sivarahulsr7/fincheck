@@ -3,6 +3,7 @@ import { Check } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { ASSET_TYPES } from '../../utils/constants'
 import { todayISO } from '../../utils/formatters'
+import DatePicker from '../common/DatePicker'
 
 export default function AssetForm({ asset, onClose }) {
   const { addAsset, updateAsset } = useFinanceStore()
@@ -85,7 +86,7 @@ export default function AssetForm({ asset, onClose }) {
 
       <div>
         <label className={labelCls}>Purchase Date</label>
-        <input type="date" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} className={inputCls} />
+        <DatePicker value={purchaseDate} onChange={setPurchaseDate} />
       </div>
 
       <div>

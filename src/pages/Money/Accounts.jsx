@@ -13,6 +13,7 @@ export default function Accounts() {
   const [type, setType] = useState('bank')
   const [balance, setBalance] = useState('')
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const totalBalance = accounts.reduce((s, a) => s + (a.balance || 0), 0)
 
@@ -35,13 +36,11 @@ export default function Accounts() {
 
   return (
     <div className="px-4 pt-3 pb-6">
-      {/* Total */}
       <div className="bg-card rounded-2xl border border-card-border p-4 mb-4">
         <p className="text-[10px] text-gray-400 uppercase tracking-widest mb-1">TOTAL BALANCE</p>
         <Amount value={totalBalance} className="text-2xl font-bold text-white" />
       </div>
 
-      {/* Account list */}
       <div className="flex flex-col gap-3 mb-4">
         {accounts.map((acc) => {
           const at = ACCOUNT_TYPES.find((t) => t.id === acc.type)
@@ -58,10 +57,10 @@ export default function Accounts() {
               <div className="flex items-center gap-3">
                 <Amount value={acc.balance || 0}
                   className={`text-sm font-bold ${(acc.balance || 0) >= 0 ? 'text-white' : 'text-red'}`} />
-                <button onClick={() => openEdit(acc)} className="text-gray-500 hover:text-gray-300">
+                <button onClick={() => openEdit(acc)} className="text-gray-500">
                   <Edit2 size={14} />
                 </button>
-                <button onClick={() => deleteAccount(acc.id)} className="text-gray-500 hover:text-red">
+                <button onClick={() => setDeleteTarget(acc)} className="text-gray-500">
                   <Trash2 size={14} />
                 </button>
               </div>
@@ -106,6 +105,17 @@ export default function Accounts() {
             className={`w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${name ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
             {saving ? 'Saving...' : <><Check size={16} /> {editAcc ? 'Update' : 'Add'} Account</>}
           </button>
+        </div>
+      </BottomSheet>
+
+      <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Account?">
+        <p className="text-gray-400 text-sm mb-5">
+          Delete "{deleteTarget?.name}"? The account balance will be removed. Existing transactions are kept.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Cancel</button>
+          <button onClick={() => { deleteAccount(deleteTarget.id); setDeleteTarget(null) }}
+            className="flex-1 py-3 rounded-xl bg-red text-white font-semibold">Delete</button>
         </div>
       </BottomSheet>
     </div>

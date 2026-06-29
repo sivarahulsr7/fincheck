@@ -155,11 +155,43 @@ export const useFinanceStore = create(
       },
 
       updateTransaction: async (id, data) => {
+        const old = get().transactions.find((t) => t.id === id)
+
         if (!FIREBASE_CONFIGURED) {
           set((s) => ({ transactions: s.transactions.map((t) => t.id === id ? { ...t, ...data, updatedAt: Date.now() } : t) }))
-          return
+        } else {
+          await setDoc(docRef('transactions', id), { ...data, updatedAt: Date.now() }, { merge: true })
         }
-        await setDoc(docRef('transactions', id), { ...data, updatedAt: Date.now() }, { merge: true })
+
+        if (!old) return
+
+        const adjustBal = async (accId, delta) => {
+          const { accounts } = get()
+          const acc = accounts.find((a) => a.id === accId)
+          if (!acc) return
+          const newBal = (acc.balance || 0) + delta
+          if (!FIREBASE_CONFIGURED) {
+            set((s) => ({ accounts: s.accounts.map((a) => a.id === accId ? { ...a, balance: newBal, updatedAt: Date.now() } : a) }))
+          } else {
+            await setDoc(docRef('accounts', accId), { balance: newBal, updatedAt: Date.now() }, { merge: true })
+          }
+        }
+
+        // Reverse old transaction's balance effect
+        if (old.type === 'expense') await adjustBal(old.accountId, +Number(old.amount))
+        else if (old.type === 'income') await adjustBal(old.accountId, -Number(old.amount))
+        else if (old.type === 'transfer') {
+          await adjustBal(old.accountId, +Number(old.amount))
+          if (old.toAccountId) await adjustBal(old.toAccountId, -Number(old.amount))
+        }
+
+        // Apply new transaction's balance effect
+        if (data.type === 'expense') await adjustBal(data.accountId, -Number(data.amount))
+        else if (data.type === 'income') await adjustBal(data.accountId, +Number(data.amount))
+        else if (data.type === 'transfer') {
+          await adjustBal(data.accountId, -Number(data.amount))
+          if (data.toAccountId) await adjustBal(data.toAccountId, +Number(data.amount))
+        }
       },
 
       deleteTransaction: async (id) => {

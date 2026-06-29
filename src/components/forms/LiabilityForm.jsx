@@ -2,11 +2,15 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { todayISO } from '../../utils/formatters'
+import DatePicker from '../common/DatePicker'
 
 const TYPES = [
-  { id: 'homeloan', name: 'Home Loan' }, { id: 'carloan', name: 'Car Loan' },
-  { id: 'personalloan', name: 'Personal Loan' }, { id: 'creditcard', name: 'Credit Card' },
-  { id: 'education', name: 'Education Loan' }, { id: 'other', name: 'Other' },
+  { id: 'homeloan',    name: 'Home Loan' },
+  { id: 'carloan',     name: 'Car Loan' },
+  { id: 'personalloan',name: 'Personal Loan' },
+  { id: 'creditcard',  name: 'Credit Card' },
+  { id: 'education',   name: 'Education' },
+  { id: 'other',       name: 'Other' },
 ]
 
 export default function LiabilityForm({ liability, onClose }) {
@@ -14,6 +18,7 @@ export default function LiabilityForm({ liability, onClose }) {
   const [name, setName] = useState(liability?.name || '')
   const [liabType, setLiabType] = useState(liability?.liabType || 'personalloan')
   const [outstandingAmount, setOutstandingAmount] = useState(liability?.outstandingAmount || '')
+  const [originalAmount, setOriginalAmount] = useState(liability?.originalAmount || '')
   const [interestRate, setInterestRate] = useState(liability?.interestRate || '')
   const [emi, setEmi] = useState(liability?.emi || '')
   const [startDate, setStartDate] = useState(liability?.startDate || todayISO())
@@ -29,6 +34,7 @@ export default function LiabilityForm({ liability, onClose }) {
       const data = {
         name, liabType,
         outstandingAmount: Number(outstandingAmount),
+        originalAmount: originalAmount ? Number(originalAmount) : null,
         interestRate: interestRate ? Number(interestRate) : null,
         emi: emi ? Number(emi) : null,
         startDate, endDate,
@@ -62,12 +68,22 @@ export default function LiabilityForm({ liability, onClose }) {
         <input type="text" placeholder="e.g. HDFC Home Loan" value={name}
           onChange={(e) => setName(e.target.value)} className={inputCls} />
       </div>
-      <div>
-        <label className={labelCls}>Outstanding Amount</label>
-        <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-          <input type="number" inputMode="decimal" placeholder="0" value={outstandingAmount}
-            onChange={(e) => setOutstandingAmount(e.target.value)} className={`${inputCls} pl-8`} />
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>Outstanding Amount</label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input type="number" inputMode="decimal" placeholder="Current balance" value={outstandingAmount}
+              onChange={(e) => setOutstandingAmount(e.target.value)} className={`${inputCls} pl-8`} />
+          </div>
+        </div>
+        <div>
+          <label className={labelCls}>Original Amount</label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input type="number" inputMode="decimal" placeholder="At start" value={originalAmount}
+              onChange={(e) => setOriginalAmount(e.target.value)} className={`${inputCls} pl-8`} />
+          </div>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -85,15 +101,13 @@ export default function LiabilityForm({ liability, onClose }) {
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className={labelCls}>Start Date</label>
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} />
-        </div>
-        <div>
-          <label className={labelCls}>End Date</label>
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} />
-        </div>
+      <div>
+        <label className={labelCls}>Start Date</label>
+        <DatePicker value={startDate} onChange={setStartDate} />
+      </div>
+      <div>
+        <label className={labelCls}>End Date (optional)</label>
+        <DatePicker value={endDate || todayISO()} onChange={setEndDate} />
       </div>
       <button onClick={handleSave} disabled={!valid || saving}
         className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${valid ? 'bg-red text-white' : 'bg-card-2 text-gray-600'}`}>

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
-import { fmt, fmtDate } from '../../utils/formatters'
+import { fmtDate } from '../../utils/formatters'
 import BottomSheet from '../../components/common/BottomSheet'
 import LiabilityForm from '../../components/forms/LiabilityForm'
 
@@ -10,6 +10,7 @@ export default function Liabilities() {
   const { liabilities, deleteLiability } = useFinanceStore()
   const [showForm, setShowForm] = useState(false)
   const [editLiab, setEditLiab] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const total = liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)
   const totalEmi = liabilities.reduce((s, l) => s + (l.emi || 0), 0)
@@ -58,7 +59,7 @@ export default function Liabilities() {
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => { setEditLiab(l); setShowForm(true) }} className="text-gray-500"><Edit2 size={13} /></button>
-                    <button onClick={() => deleteLiability(l.id)} className="text-gray-500"><Trash2 size={13} /></button>
+                    <button onClick={() => setDeleteTarget(l)} className="text-gray-500"><Trash2 size={13} /></button>
                   </div>
                 </div>
                 <div className="flex items-center justify-between mb-2">
@@ -66,9 +67,19 @@ export default function Liabilities() {
                   {l.interestRate && <span className="text-xs text-gray-400">{l.interestRate}% p.a.</span>}
                 </div>
                 {l.emi > 0 && (
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
                     <span>EMI: </span><Amount value={l.emi} className="text-gray-300" />
                     {l.endDate && <span>· Ends {fmtDate(l.endDate)}</span>}
+                  </div>
+                )}
+                {progress > 0 && (
+                  <div>
+                    <div className="flex justify-between text-[10px] text-gray-500 mb-1">
+                      <span>Paid off</span><span>{progress.toFixed(0)}%</span>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill bg-green" style={{ width: `${progress}%` }} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -80,6 +91,15 @@ export default function Liabilities() {
       <BottomSheet open={showForm} onClose={() => { setShowForm(false); setEditLiab(null) }}
         title={editLiab ? 'Edit Liability' : 'Add Liability'}>
         <LiabilityForm liability={editLiab} onClose={() => { setShowForm(false); setEditLiab(null) }} />
+      </BottomSheet>
+
+      <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Liability?">
+        <p className="text-gray-400 text-sm mb-5">Delete "{deleteTarget?.name}"? This cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Cancel</button>
+          <button onClick={() => { deleteLiability(deleteTarget.id); setDeleteTarget(null) }}
+            className="flex-1 py-3 rounded-xl bg-red text-white font-semibold">Delete</button>
+        </div>
       </BottomSheet>
     </div>
   )

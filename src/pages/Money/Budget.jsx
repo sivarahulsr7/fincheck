@@ -1,37 +1,54 @@
-import { useState } from 'react'
-import { Plus, Edit2, Trash2, Check } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, Edit2, Trash2, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
-import { fmt, monthKey } from '../../utils/formatters'
+import { monthKey } from '../../utils/formatters'
 import BottomSheet from '../../components/common/BottomSheet'
 import CategoryIcon from '../../components/common/CategoryIcon'
 
-const currentMk = monthKey(new Date())
-
 export default function Budget() {
   const { budgets, transactions, setBudget, deleteBudget } = useFinanceStore()
+  const [monthOffset, setMonthOffset] = useState(0)
   const [showForm, setShowForm] = useState(false)
   const [editBudget, setEditBudget] = useState(null)
   const [catId, setCatId] = useState('')
   const [limit, setLimit] = useState('')
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const thisMonthStart = new Date(); thisMonthStart.setDate(1)
-  const tmStr = thisMonthStart.toISOString().split('T')[0]
+  const currentMk = useMemo(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset)
+    return monthKey(d)
+  }, [monthOffset])
+
+  const monthLabel = useMemo(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset)
+    return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+  }, [monthOffset])
+
+  const monthStart = useMemo(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset, 1)
+    return d.toISOString().split('T')[0]
+  }, [monthOffset])
+
+  const monthEnd = useMemo(() => {
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset + 1, 0)
+    return d.toISOString().split('T')[0]
+  }, [monthOffset])
 
   const monthBudgets = budgets.filter((b) => b.monthKey === currentMk)
   const expCats = CATEGORIES.filter((c) => c.type === 'expense')
 
-  const getSpent = (catId) =>
-    transactions.filter((t) => t.type === 'expense' && t.categoryId === catId && t.date >= tmStr)
+  const getSpent = (cId) =>
+    transactions.filter((t) => t.type === 'expense' && t.categoryId === cId && t.date >= monthStart && t.date <= monthEnd)
       .reduce((s, t) => s + Number(t.amount), 0)
 
   const handleSave = async () => {
     if (!catId || !limit || saving) return
     setSaving(true)
     const existing = editBudget || monthBudgets.find((b) => b.categoryId === catId)
-    await setBudget({ id: existing?.id, categoryId: catId, monthKey: currentMk, limit: Number(limit), spent: getSpent(catId) })
+    await setBudget({ id: existing?.id, categoryId: catId, monthKey: currentMk, limit: Number(limit) })
     setSaving(false)
     setShowForm(false)
     setEditBudget(null)
@@ -54,6 +71,24 @@ export default function Budget() {
 
   return (
     <div className="px-4 pt-3 pb-6">
+      {/* Month navigation */}
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setMonthOffset(o => o - 1)}
+          className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 active:text-white">
+          <ChevronLeft size={18} />
+        </button>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-white">{monthLabel}</p>
+          {monthOffset !== 0 && (
+            <button onClick={() => setMonthOffset(0)} className="text-[10px] text-green">Back to current</button>
+          )}
+        </div>
+        <button onClick={() => setMonthOffset(o => o + 1)}
+          className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 active:text-white">
+          <ChevronRight size={18} />
+        </button>
+      </div>
+
       {/* Summary */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-card-2 rounded-xl p-3">
@@ -62,7 +97,7 @@ export default function Budget() {
         </div>
         <div className="bg-card-2 rounded-xl p-3">
           <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">TOTAL SPENT</p>
-          <Amount value={totalSpent} className={`text-base font-bold ${totalSpent > totalBudget ? 'text-red' : 'text-green'}`} />
+          <Amount value={totalSpent} className={`text-base font-bold ${totalSpent > totalBudget && totalBudget > 0 ? 'text-red' : 'text-green'}`} />
         </div>
       </div>
 
@@ -87,7 +122,7 @@ export default function Budget() {
       {/* Budget list */}
       <div className="flex flex-col gap-3 mb-4">
         {monthBudgets.length === 0 && (
-          <p className="text-gray-500 text-sm text-center py-6">No budgets set for this month.</p>
+          <p className="text-gray-500 text-sm text-center py-6">No budgets for {monthLabel}.</p>
         )}
         {monthBudgets.map((b) => {
           const cat = CATEGORIES.find((c) => c.id === b.categoryId)
@@ -106,7 +141,7 @@ export default function Budget() {
                     <span className="text-sm font-medium text-white">{cat.name}</span>
                     <div className="flex gap-2">
                       <button onClick={() => openEdit(b)} className="text-gray-500"><Edit2 size={13} /></button>
-                      <button onClick={() => deleteBudget(b.id)} className="text-gray-500"><Trash2 size={13} /></button>
+                      <button onClick={() => setDeleteTarget(b)} className="text-gray-500"><Trash2 size={13} /></button>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 mt-0.5">
@@ -125,7 +160,6 @@ export default function Budget() {
         })}
       </div>
 
-      {/* Add Budget button */}
       <button onClick={() => { setEditBudget(null); setCatId(''); setLimit(''); setShowForm(true) }}
         className="w-full py-3 rounded-xl border border-dashed border-green text-green text-sm font-medium flex items-center justify-center gap-2">
         <Plus size={16} /> Set Budget
@@ -160,6 +194,18 @@ export default function Budget() {
             className={`w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${catId && limit ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
             {saving ? 'Saving...' : <><Check size={16} /> Save Budget</>}
           </button>
+        </div>
+      </BottomSheet>
+
+      {/* Delete confirm */}
+      <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Budget?">
+        <p className="text-gray-400 text-sm mb-5">
+          Remove the {CATEGORIES.find(c => c.id === deleteTarget?.categoryId)?.name} budget? This cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Cancel</button>
+          <button onClick={() => { deleteBudget(deleteTarget.id); setDeleteTarget(null) }}
+            className="flex-1 py-3 rounded-xl bg-red text-white font-semibold">Delete</button>
         </div>
       </BottomSheet>
     </div>

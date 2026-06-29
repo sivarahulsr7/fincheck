@@ -4,10 +4,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
 import Amount from '../components/common/Amount'
 import { CATEGORIES } from '../utils/constants'
-import { fmt, fmtPct, nDaysAgo, monthKey, startOfMonth, endOfMonth } from '../utils/formatters'
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Tooltip
-} from 'recharts'
+import { fmtPct, nDaysAgo } from '../utils/formatters'
 
 const TIME_FILTERS = [
   { id: '7d',  label: '7D',  days: 7 },

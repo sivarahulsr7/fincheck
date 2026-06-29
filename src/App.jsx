@@ -14,6 +14,8 @@ import Goals from './pages/Goals'
 import Settings from './pages/Settings'
 import Import from './pages/Import'
 import TransactionForm from './components/forms/TransactionForm'
+import AssetForm from './components/forms/AssetForm'
+import LiabilityForm from './components/forms/LiabilityForm'
 
 export default function App() {
   const { isLocked, pinSetupDone, activeTab, setActiveTab, touchActivity, lock } = useAppStore()
@@ -106,13 +108,18 @@ export default function App() {
     </div>
   )
 
-  const handleFabAction = (action) => {
-    if (action === 'asset' || action === 'liability') { setActiveTab('wealth'); return }
-    setFabAction(action)
+  const handleFabAction = (action) => setFabAction(action)
+
+  const FAB_PAGES = {
+    expense:   { label: 'Add Expense',   form: <TransactionForm type="expense"   onClose={() => setFabAction(null)} /> },
+    income:    { label: 'Add Income',    form: <TransactionForm type="income"    onClose={() => setFabAction(null)} /> },
+    transfer:  { label: 'Add Transfer',  form: <TransactionForm type="transfer"  onClose={() => setFabAction(null)} /> },
+    asset:     { label: 'Add Asset',     form: <AssetForm       onClose={() => setFabAction(null)} /> },
+    liability: { label: 'Add Liability', form: <LiabilityForm   onClose={() => setFabAction(null)} /> },
   }
 
-  if (fabAction) {
-    const label = fabAction === 'expense' ? 'Add Expense' : fabAction === 'income' ? 'Add Income' : 'Add Transfer'
+  if (fabAction && FAB_PAGES[fabAction]) {
+    const { label, form } = FAB_PAGES[fabAction]
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-3 px-4 pb-3 flex-shrink-0"
@@ -120,12 +127,7 @@ export default function App() {
           <button onClick={() => setFabAction(null)} className="text-green text-sm font-medium">← Back</button>
           <span className="text-white font-semibold text-sm">{label}</span>
         </div>
-        <div className="page-content px-4 pt-2">
-          <TransactionForm
-            type={fabAction === 'transfer' ? 'transfer' : fabAction}
-            onClose={() => setFabAction(null)}
-          />
-        </div>
+        <div className="page-content px-4 pt-2">{form}</div>
       </div>
     )
   }

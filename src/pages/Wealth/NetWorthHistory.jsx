@@ -1,32 +1,41 @@
 import { useMemo } from 'react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
-import { monthKey } from '../../utils/formatters'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
+  LineChart, Line, XAxis, Tooltip, ResponsiveContainer
 } from 'recharts'
 
 export default function NetWorthHistory() {
-  const { accounts, assets, liabilities } = useFinanceStore()
+  const { accounts, assets, liabilities, transactions } = useFinanceStore()
 
-  const netWorth = accounts.reduce((s, a) => s + (a.balance || 0), 0)
-    + assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)
-    - liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)
+  const currentAccountBal = accounts.reduce((s, a) => s + (a.balance || 0), 0)
+  const totalAssets       = assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)
+  const totalLiab         = liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)
+  const netWorth = currentAccountBal + totalAssets - totalLiab
 
-  // Simulated historical data based on current net worth
+  // Reconstruct account balance at end of each past month by rolling back transactions.
+  // Asset/liability values are held at today's prices (no historical records stored).
   const chartData = useMemo(() => {
-    const result = []
-    for (let i = 5; i >= 0; i--) {
+    return Array.from({ length: 6 }, (_, i) => {
+      const monthsAgo = 5 - i
+      // Last day of that month
       const d = new Date()
-      d.setMonth(d.getMonth() - i, 1)
-      const factor = 1 - (i * 0.03) // simple approximation
-      result.push({
-        label: d.toLocaleDateString('en-IN', { month: 'short' }),
-        value: Math.max(0, netWorth * factor),
-      })
-    }
-    return result
-  }, [netWorth])
+      d.setMonth(d.getMonth() - monthsAgo + 1, 0)
+      const monthEnd = d.toISOString().split('T')[0]
+
+      // Roll back: undo income/expense that happened AFTER this month end
+      const futureIncome  = transactions.filter(t => t.type === 'income'  && t.date > monthEnd).reduce((s, t) => s + Number(t.amount), 0)
+      const futureExpense = transactions.filter(t => t.type === 'expense' && t.date > monthEnd).reduce((s, t) => s + Number(t.amount), 0)
+      const pastAccountBal = currentAccountBal - futureIncome + futureExpense
+
+      const label = new Date(d.getFullYear(), d.getMonth(), 1)
+        .toLocaleDateString('en-IN', { month: 'short' })
+
+      return { label, value: pastAccountBal + totalAssets - totalLiab }
+    })
+  }, [accounts, assets, liabilities, transactions])
+
+  const hasData = transactions.length > 0 || netWorth !== 0
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null
@@ -44,8 +53,11 @@ export default function NetWorthHistory() {
       <Amount value={netWorth} className="text-2xl font-bold text-green mb-4" />
 
       <div className="bg-card rounded-2xl border border-card-border p-4 mb-4">
-        <p className="text-xs text-gray-400 mb-3">6-Month Trend</p>
-        {netWorth !== 0 ? (
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-gray-400">6-Month Trend</p>
+          <p className="text-[10px] text-gray-600">Assets at today's prices</p>
+        </div>
+        {hasData ? (
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={chartData}>
               <XAxis dataKey="label" tick={{ fill: '#6B7280', fontSize: 10 }} axisLine={false} tickLine={false} />
@@ -55,7 +67,7 @@ export default function NetWorthHistory() {
           </ResponsiveContainer>
         ) : (
           <div className="h-40 flex items-center justify-center text-gray-500 text-sm">
-            Add accounts, assets, and liabilities to see history.
+            Add accounts, assets, and transactions to see history.
           </div>
         )}
       </div>
@@ -63,15 +75,15 @@ export default function NetWorthHistory() {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-card rounded-xl border border-card-border p-3">
           <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">ACCOUNTS</p>
-          <Amount value={accounts.reduce((s, a) => s + (a.balance || 0), 0)} className="text-sm font-bold text-white" />
+          <Amount value={currentAccountBal} className="text-sm font-bold text-white" />
         </div>
         <div className="bg-card rounded-xl border border-card-border p-3">
           <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">ASSETS</p>
-          <Amount value={assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)} className="text-sm font-bold text-green" />
+          <Amount value={totalAssets} className="text-sm font-bold text-green" />
         </div>
         <div className="bg-card rounded-xl border border-card-border p-3">
           <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">LIABILITIES</p>
-          <Amount value={liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)} className="text-sm font-bold text-red" />
+          <Amount value={totalLiab} className="text-sm font-bold text-red" />
         </div>
       </div>
     </div>

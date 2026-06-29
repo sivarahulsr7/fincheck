@@ -68,7 +68,7 @@ export default function Allocation() {
                   <div className="flex items-center gap-3">
                     <Amount value={t.value} className="text-sm text-gray-300" />
                     <span className="text-xs font-medium" style={{ color: t.color }}>
-                      +{total > 0 ? ((t.value / total) * 100).toFixed(0) : 0}%
+                      {total > 0 ? ((t.value / total) * 100).toFixed(0) : 0}%
                     </span>
                   </div>
                 </div>

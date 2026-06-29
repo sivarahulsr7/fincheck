@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Plus, Edit2, Trash2, ChevronDown, Search } from 'lucide-react'
+import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { ASSET_TYPES } from '../../utils/constants'
-import { fmtPct, fmtDate } from '../../utils/formatters'
+import { fmtPct } from '../../utils/formatters'
 import BottomSheet from '../../components/common/BottomSheet'
 import AssetForm from '../../components/forms/AssetForm'
 
@@ -11,8 +11,8 @@ export default function Assets() {
   const { assets, deleteAsset } = useFinanceStore()
   const [showForm, setShowForm] = useState(false)
   const [editAsset, setEditAsset] = useState(null)
-  const [viewMode, setViewMode] = useState('list') // list | grid
   const [catFilter, setCatFilter] = useState('all')
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const totalInvested = assets.reduce((s, a) => s + (a.investedAmount || 0), 0)
   const totalCurrent  = assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)
@@ -28,7 +28,6 @@ export default function Assets() {
 
   return (
     <div className="px-4 pt-3 pb-6">
-      {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className="text-lg font-bold text-white">Assets</h2>
@@ -39,7 +38,6 @@ export default function Assets() {
         </button>
       </div>
 
-      {/* Summary */}
       <div className="bg-card rounded-2xl border border-card-border p-4 mb-4">
         <div className="grid grid-cols-2 gap-4 mb-3">
           <div>
@@ -60,7 +58,6 @@ export default function Assets() {
         </div>
       </div>
 
-      {/* Category filter */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
         <button onClick={() => setCatFilter('all')}
           className={`px-3 py-1.5 rounded-full text-xs font-medium flex-shrink-0 transition-all ${catFilter === 'all' ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-400'}`}>
@@ -75,7 +72,6 @@ export default function Assets() {
         ))}
       </div>
 
-      {/* List */}
       {filtered.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500 text-sm">No assets yet.</p>
@@ -89,8 +85,8 @@ export default function Assets() {
           </div>
           {filtered.map((a) => {
             const at = getAssetType(a.assetType)
-            const pnl = (a.currentValue || a.investedAmount || 0) - (a.investedAmount || 0)
-            const pnlP = a.investedAmount > 0 ? (pnl / a.investedAmount) * 100 : 0
+            const itemPnl = (a.currentValue || a.investedAmount || 0) - (a.investedAmount || 0)
+            const itemPnlP = a.investedAmount > 0 ? (itemPnl / a.investedAmount) * 100 : 0
             return (
               <div key={a.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
@@ -103,13 +99,13 @@ export default function Assets() {
                 </div>
                 <div className="text-right">
                   <Amount value={a.currentValue || a.investedAmount || 0} className="text-sm text-white" />
-                  <p className={`text-[10px] font-medium ${pnlP >= 0 ? 'text-green' : 'text-red'}`}>
-                    {fmtPct(pnlP)}
+                  <p className={`text-[10px] font-medium ${itemPnlP >= 0 ? 'text-green' : 'text-red'}`}>
+                    {fmtPct(itemPnlP)}
                   </p>
                 </div>
                 <div className="flex gap-1">
                   <button onClick={() => openEdit(a)} className="text-gray-600 hover:text-gray-300 p-1"><Edit2 size={12} /></button>
-                  <button onClick={() => deleteAsset(a.id)} className="text-gray-600 hover:text-red p-1"><Trash2 size={12} /></button>
+                  <button onClick={() => setDeleteTarget(a)} className="text-gray-600 hover:text-red p-1"><Trash2 size={12} /></button>
                 </div>
               </div>
             )
@@ -120,6 +116,15 @@ export default function Assets() {
       <BottomSheet open={showForm} onClose={() => { setShowForm(false); setEditAsset(null) }}
         title={editAsset ? 'Edit Asset' : 'Add Asset'}>
         <AssetForm asset={editAsset} onClose={() => { setShowForm(false); setEditAsset(null) }} />
+      </BottomSheet>
+
+      <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Asset?">
+        <p className="text-gray-400 text-sm mb-5">Delete "{deleteTarget?.name}"? This cannot be undone.</p>
+        <div className="flex gap-3">
+          <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Cancel</button>
+          <button onClick={() => { deleteAsset(deleteTarget.id); setDeleteTarget(null) }}
+            className="flex-1 py-3 rounded-xl bg-red text-white font-semibold">Delete</button>
+        </div>
       </BottomSheet>
     </div>
   )
