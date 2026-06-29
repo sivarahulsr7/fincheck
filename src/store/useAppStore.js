@@ -12,7 +12,7 @@ export const useAppStore = create(
       wrongAttempts: 0,
       biometricEnabled: false,
 
-      balancesHidden: false,
+      balancesHidden: true,
       activeTab: 'overview',
       moneySubTab: 'transactions',
       wealthSubTab: 'assets',
