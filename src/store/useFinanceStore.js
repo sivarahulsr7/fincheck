@@ -20,7 +20,7 @@ function makeLocalOps(set, get, key) {
   return {
     add: (data) => {
       const id = crypto.randomUUID()
-      const item = { ...data, id, createdAt: todayISO(), updatedAt: Date.now() }
+      const item = { ...data, id, createdAt: Date.now(), updatedAt: Date.now() }
       set((s) => ({ [key]: [...s[key], item] }))
       return Promise.resolve(item)
     },
@@ -126,7 +126,7 @@ export const useFinanceStore = create(
       addTransaction: async (data) => {
         const { accounts } = get()
         const id = FIREBASE_CONFIGURED ? newId() : crypto.randomUUID()
-        const tx = { ...data, id, createdAt: todayISO(), updatedAt: Date.now() }
+        const tx = { ...data, id, createdAt: Date.now(), updatedAt: Date.now() }
 
         if (!FIREBASE_CONFIGURED) {
           set((s) => ({ transactions: [...s.transactions, tx] }))

@@ -35,7 +35,14 @@ export default function Transactions({ onAdd }) {
         if (search && !t.description?.toLowerCase().includes(search.toLowerCase())) return false
         return true
       })
-      .sort((a, b) => b.date.localeCompare(a.date))
+      .sort((a, b) => {
+        const dateCmp = b.date.localeCompare(a.date)
+        if (dateCmp !== 0) return dateCmp
+        // Within same date: latest added first (createdAt is ms number for new txs, fallback to updatedAt)
+        const aTs = typeof a.createdAt === 'number' ? a.createdAt : (a.updatedAt || 0)
+        const bTs = typeof b.createdAt === 'number' ? b.createdAt : (b.updatedAt || 0)
+        return bTs - aTs
+      })
   }, [transactions, typeFilter, accountFilter, catFilter, search])
 
   const totalSpending = filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
@@ -52,7 +59,7 @@ export default function Transactions({ onAdd }) {
     return { ...cat, amt }
   }).filter((c) => c.amt > 0)
 
-  const lastEntry = transactions.length > 0 ? daysAgo(transactions.sort((a, b) => b.date.localeCompare(a.date))[0]?.date) : null
+  const lastEntry = transactions.length > 0 ? daysAgo([...transactions].sort((a, b) => b.date.localeCompare(a.date))[0]?.date) : null
 
   const toggleSelect = (id) => {
     const s = new Set(selected)
