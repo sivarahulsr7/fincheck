@@ -1,0 +1,139 @@
+import { useState } from 'react'
+import { Check, ChevronDown } from 'lucide-react'
+import { useFinanceStore } from '../../store/useFinanceStore'
+import { CATEGORIES } from '../../utils/constants'
+import { todayISO } from '../../utils/formatters'
+import CategoryIcon from '../common/CategoryIcon'
+
+export default function TransactionForm({ type: initialType = 'expense', onClose }) {
+  const { accounts, addTransaction, loading } = useFinanceStore()
+  const [type, setType] = useState(initialType)
+  const [amount, setAmount] = useState('')
+  const [description, setDescription] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [accountId, setAccountId] = useState(accounts[0]?.id || '')
+  const [toAccountId, setToAccountId] = useState('')
+  const [date, setDate] = useState(todayISO())
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const cats = CATEGORIES.filter((c) => {
+    if (type === 'transfer') return false
+    return c.type === type
+  })
+  const selectedCat = CATEGORIES.find((c) => c.id === categoryId)
+
+  const valid = amount && Number(amount) > 0 &&
+    (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
+    date
+
+  const handleSave = async () => {
+    if (!valid || saving) return
+    setSaving(true)
+    try {
+      await addTransaction({
+        type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
+        categoryId: type === 'transfer' ? null : categoryId,
+        accountId, toAccountId: type === 'transfer' ? toAccountId : null,
+        date, note,
+      })
+      onClose?.()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const inputCls = 'w-full bg-card-2 border border-card-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-green transition-colors'
+  const labelCls = 'text-xs text-gray-400 font-medium uppercase tracking-wide mb-1 block'
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Type selector */}
+      <div className="flex gap-1 p-1 bg-card-2 rounded-xl">
+        {['expense', 'income', 'transfer'].map((t) => (
+          <button key={t} onClick={() => { setType(t); setCategoryId('') }}
+            className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${type === t ? 'bg-green text-[#1a3d29]' : 'text-gray-400'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Amount */}
+      <div>
+        <label className={labelCls}>Amount</label>
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+          <input type="number" inputMode="decimal" placeholder="0"
+            value={amount} onChange={(e) => setAmount(e.target.value)}
+            className={`${inputCls} pl-8 text-xl font-semibold`} />
+        </div>
+      </div>
+
+      {/* Category (not for transfer) */}
+      {type !== 'transfer' && (
+        <div>
+          <label className={labelCls}>Category</label>
+          <div className="grid grid-cols-4 gap-2">
+            {cats.map((cat) => (
+              <button key={cat.id} onClick={() => setCategoryId(cat.id)}
+                className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${categoryId === cat.id ? 'border-green bg-green-tint' : 'border-card-border bg-card-2'}`}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: cat.bg }}>
+                  <span style={{ color: cat.color }}><CategoryIcon icon={cat.icon} size={14} /></span>
+                </div>
+                <span className="text-[9px] text-gray-300 text-center leading-tight">{cat.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Description */}
+      <div>
+        <label className={labelCls}>Description</label>
+        <input type="text" placeholder="What was it for?" value={description}
+          onChange={(e) => setDescription(e.target.value)} className={inputCls} />
+      </div>
+
+      {/* Account */}
+      <div>
+        <label className={labelCls}>{type === 'transfer' ? 'From Account' : 'Account'}</label>
+        <select value={accountId} onChange={(e) => setAccountId(e.target.value)} className={`${inputCls} cursor-pointer`}>
+          {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+        </select>
+      </div>
+
+      {/* To Account (transfer only) */}
+      {type === 'transfer' && (
+        <div>
+          <label className={labelCls}>To Account</label>
+          <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className={`${inputCls} cursor-pointer`}>
+            <option value="">Select account...</option>
+            {accounts.filter((a) => a.id !== accountId).map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Date */}
+      <div>
+        <label className={labelCls}>Date</label>
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+      </div>
+
+      {/* Note */}
+      <div>
+        <label className={labelCls}>Note (optional)</label>
+        <textarea rows={2} placeholder="Any note..." value={note}
+          onChange={(e) => setNote(e.target.value)}
+          className={`${inputCls} resize-none`} />
+      </div>
+
+      {/* Save */}
+      <button onClick={handleSave} disabled={!valid || saving}
+        className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${valid ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
+        {saving ? 'Saving...' : <><Check size={16} /> Save Transaction</>}
+      </button>
+    </div>
+  )
+}

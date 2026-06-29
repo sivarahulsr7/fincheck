@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FinCheck",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["start-dev.sh"],
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}
