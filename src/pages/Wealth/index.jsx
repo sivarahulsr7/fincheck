@@ -13,7 +13,7 @@ export default function Wealth() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex border-b border-card-border px-4 pt-3 flex-shrink-0">
+      <div className="flex border-b border-card-border px-4 flex-shrink-0" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
         {SUB_TABS.map((tab) => {
           const key = tab.toLowerCase().replace(' ', '-')
           const isActive = active === key

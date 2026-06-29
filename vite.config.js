@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    globals: true,
+  },
   base: '/fincheck/',
   server: {
     port: parseInt(process.env.PORT) || 5173,

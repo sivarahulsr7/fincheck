@@ -21,7 +21,7 @@ export default function More({ onNavigate }) {
   }
 
   return (
-    <div className="page-content px-4 pt-4">
+    <div className="page-content px-4" style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
       {/* Grid menu */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         {MENU_ITEMS.map(({ id, label, icon: Icon, color }) => (
