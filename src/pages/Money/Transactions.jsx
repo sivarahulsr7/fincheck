@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
-import { Search, Download, MoreVertical, Check, Square } from 'lucide-react'
+import { Search, Download, MoreVertical, Check, Square, Pencil, Trash2, X } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { useAppStore } from '../../store/useAppStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
 import { fmt, fmtDate, monthKey, daysAgo } from '../../utils/formatters'
 import CategoryIcon from '../../components/common/CategoryIcon'
+import BottomSheet from '../../components/common/BottomSheet'
+import TransactionForm from '../../components/forms/TransactionForm'
 
 const TYPE_FILTERS = ['Expense', 'Income', 'Transfer', 'All']
 
@@ -21,6 +23,8 @@ export default function Transactions({ onAdd }) {
 
   // Category filter
   const [catFilter, setCatFilter] = useState(null)
+  const [menuTx, setMenuTx] = useState(null)
+  const [editTx, setEditTx] = useState(null)
 
   const filtered = useMemo(() => {
     return transactions
@@ -208,7 +212,8 @@ export default function Transactions({ onAdd }) {
                   <div className="flex items-center gap-2">
                     <Amount value={tx.amount}
                       className={`text-sm font-semibold ${tx.type === 'income' ? 'text-green' : tx.type === 'expense' ? 'text-red' : 'text-gray-300'}`} />
-                    <button className="text-gray-600" onClick={(e) => { e.stopPropagation(); }}>
+                    <button className="p-1 text-gray-500 active:text-gray-300"
+                      onPointerDown={(e) => { e.stopPropagation(); setMenuTx(tx) }}>
                       <MoreVertical size={14} />
                     </button>
                   </div>
@@ -218,6 +223,35 @@ export default function Transactions({ onAdd }) {
           </>
         )}
       </div>
+
+      {/* Transaction action menu */}
+      <BottomSheet open={!!menuTx} onClose={() => setMenuTx(null)} title={menuTx?.description || 'Transaction'}>
+        {menuTx && (
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={() => { setEditTx(menuTx); setMenuTx(null) }}
+              className="flex items-center gap-3 w-full px-4 py-3.5 bg-card-2 rounded-xl text-white text-sm font-medium">
+              <Pencil size={16} className="text-green" /> Edit transaction
+            </button>
+            <button
+              onClick={async () => { await deleteTransaction(menuTx.id); setMenuTx(null) }}
+              className="flex items-center gap-3 w-full px-4 py-3.5 bg-card-2 rounded-xl text-red text-sm font-medium">
+              <Trash2 size={16} /> Delete transaction
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+
+      {/* Edit transaction sheet */}
+      <BottomSheet open={!!editTx} onClose={() => setEditTx(null)} title="Edit Transaction">
+        {editTx && (
+          <TransactionForm
+            transaction={editTx}
+            type={editTx.type}
+            onClose={() => setEditTx(null)}
+          />
+        )}
+      </BottomSheet>
     </div>
   )
 }

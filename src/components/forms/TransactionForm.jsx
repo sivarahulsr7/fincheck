@@ -5,16 +5,17 @@ import { CATEGORIES } from '../../utils/constants'
 import { todayISO } from '../../utils/formatters'
 import CategoryIcon from '../common/CategoryIcon'
 
-export default function TransactionForm({ type: initialType = 'expense', onClose }) {
-  const { accounts, addTransaction, loading } = useFinanceStore()
-  const [type, setType] = useState(initialType)
-  const [amount, setAmount] = useState('')
-  const [description, setDescription] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [accountId, setAccountId] = useState(accounts[0]?.id || '')
-  const [toAccountId, setToAccountId] = useState('')
-  const [date, setDate] = useState(todayISO())
-  const [note, setNote] = useState('')
+export default function TransactionForm({ type: initialType = 'expense', transaction, onClose }) {
+  const { accounts, addTransaction, updateTransaction } = useFinanceStore()
+  const editing = !!transaction
+  const [type, setType] = useState(transaction?.type || initialType)
+  const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
+  const [description, setDescription] = useState(transaction?.description || '')
+  const [categoryId, setCategoryId] = useState(transaction?.categoryId || '')
+  const [accountId, setAccountId] = useState(transaction?.accountId || accounts[0]?.id || '')
+  const [toAccountId, setToAccountId] = useState(transaction?.toAccountId || '')
+  const [date, setDate] = useState(transaction?.date || todayISO())
+  const [note, setNote] = useState(transaction?.note || transaction?.notes || '')
   const [saving, setSaving] = useState(false)
 
   const cats = CATEGORIES.filter((c) => {
@@ -31,12 +32,14 @@ export default function TransactionForm({ type: initialType = 'expense', onClose
     if (!valid || saving) return
     setSaving(true)
     try {
-      await addTransaction({
+      const data = {
         type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
         categoryId: type === 'transfer' ? null : categoryId,
         accountId, toAccountId: type === 'transfer' ? toAccountId : null,
         date, note,
-      })
+      }
+      if (editing) await updateTransaction(transaction.id, data)
+      else await addTransaction(data)
       onClose?.()
     } finally {
       setSaving(false)
@@ -132,7 +135,7 @@ export default function TransactionForm({ type: initialType = 'expense', onClose
       {/* Save */}
       <button onClick={handleSave} disabled={!valid || saving}
         className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${valid ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
-        {saving ? 'Saving...' : <><Check size={16} /> Save Transaction</>}
+        {saving ? 'Saving...' : <><Check size={16} /> {editing ? 'Update Transaction' : 'Save Transaction'}</>}
       </button>
     </div>
   )
