@@ -51,6 +51,7 @@ export const useAppStore = create(
         pinSetupDone: s.pinSetupDone,
         balancesHidden: s.balancesHidden,
         biometricEnabled: s.biometricEnabled,
+        lastActive: s.lastActive,
       }),
     }
   )

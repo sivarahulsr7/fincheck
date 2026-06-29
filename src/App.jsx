@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { useFinanceStore } from './store/useFinanceStore'
 import { useAuthStore } from './store/useAuthStore'
+import { auth } from './firebase'
 import LoginScreen from './components/LoginScreen'
 import PinLock from './components/PinLock'
 import BottomNav from './components/layout/BottomNav'
@@ -16,13 +17,18 @@ import BottomSheet from './components/common/BottomSheet'
 import TransactionForm from './components/forms/TransactionForm'
 
 export default function App() {
-  const { isLocked, pinSetupDone, activeTab, setActiveTab, checkInactivity, touchActivity } = useAppStore()
+  const { isLocked, pinSetupDone, lastActive, activeTab, setActiveTab, checkInactivity, touchActivity, lock } = useAppStore()
   const { init, loading } = useFinanceStore()
   const { user, authLoading, init: initAuth } = useAuthStore()
   const [innerPage, setInnerPage] = useState(null)
   const [fabAction, setFabAction] = useState(null)
 
-  // Start auth listener
+  // Lock on startup if inactive for more than 5 min
+  useEffect(() => {
+    if (pinSetupDone && Date.now() - lastActive > 5 * 60 * 1000) lock()
+  }, [])
+
+  // Start auth listener — use auth.currentUser for instant render, verify in background
   useEffect(() => {
     const unsub = initAuth()
     return unsub

@@ -18,6 +18,8 @@ export const useAuthStore = create((set) => ({
 
   init: () => {
     getRedirectResult(auth).catch(() => {})
+    // Use cached user immediately to avoid splash screen delay
+    if (auth.currentUser) set({ user: auth.currentUser, authLoading: false })
     const unsub = onAuthStateChanged(auth, (user) => {
       set({ user, authLoading: false })
     })
