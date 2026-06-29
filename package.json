@@ -12,12 +12,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rolldown/binding-darwin-arm64": "^1.1.3",
-    "@rollup/rollup-darwin-arm64": "^4.62.2",
     "autoprefixer": "^10.5.2",
     "date-fns": "^4.4.0",
     "firebase": "^12.15.0",
-    "lightningcss-darwin-arm64": "^1.32.0",
     "lucide-react": "^1.22.0",
     "postcss": "^8.5.16",
     "react": "^19.2.7",
