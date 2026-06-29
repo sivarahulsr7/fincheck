@@ -4,6 +4,7 @@ import { useFinanceStore } from '../../store/useFinanceStore'
 import { CATEGORIES } from '../../utils/constants'
 import { todayISO } from '../../utils/formatters'
 import CategoryIcon from '../common/CategoryIcon'
+import DatePicker from '../common/DatePicker'
 
 export default function TransactionForm({ type: initialType = 'expense', transaction, onClose }) {
   const { accounts, addTransaction, updateTransaction } = useFinanceStore()
@@ -121,7 +122,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       {/* Date */}
       <div>
         <label className={labelCls}>Date</label>
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+        <DatePicker value={date} onChange={setDate} />
       </div>
 
       {/* Note */}
