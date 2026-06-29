@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { useFinanceStore } from './store/useFinanceStore'
+import { useAuthStore } from './store/useAuthStore'
+import LoginScreen from './components/LoginScreen'
 import PinLock from './components/PinLock'
 import BottomNav from './components/layout/BottomNav'
 import FAB from './components/layout/FAB'
@@ -16,11 +18,20 @@ import TransactionForm from './components/forms/TransactionForm'
 export default function App() {
   const { isLocked, pinSetupDone, activeTab, setActiveTab, checkInactivity, touchActivity } = useAppStore()
   const { init, loading } = useFinanceStore()
-  const [innerPage, setInnerPage] = useState(null) // 'goals' | 'settings'
-  const [fabAction, setFabAction] = useState(null)  // 'expense' | 'income' | 'asset' | 'liability'
+  const { user, authLoading, init: initAuth } = useAuthStore()
+  const [innerPage, setInnerPage] = useState(null)
+  const [fabAction, setFabAction] = useState(null)
 
-  // Init Firebase listeners once
-  useEffect(() => { init() }, [])
+  // Start auth listener
+  useEffect(() => {
+    const unsub = initAuth()
+    return unsub
+  }, [])
+
+  // Init finance data once logged in
+  useEffect(() => {
+    if (user) init()
+  }, [user])
 
   // Inactivity timer
   useEffect(() => {
@@ -28,7 +39,7 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
-  // Touch activity on any interaction
+  // Touch activity
   useEffect(() => {
     const onActivity = () => touchActivity()
     window.addEventListener('pointerdown', onActivity, { passive: true })
@@ -41,12 +52,32 @@ export default function App() {
     }
   }, [])
 
-  // Show PIN screen if locked or PIN not set up
-  if (isLocked || !pinSetupDone) {
-    return <PinLock />
+  // Auth loading splash
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-green flex items-center justify-center">
+            <span className="text-[#1a3d29] font-bold text-2xl">FC</span>
+          </div>
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="w-2 h-2 rounded-full bg-green animate-bounce"
+                style={{ animationDelay: `${i * 0.15}s` }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
   }
 
-  // Loading state
+  // Not logged in → show login
+  if (!user) return <LoginScreen />
+
+  // Logged in but PIN not set or locked
+  if (isLocked || !pinSetupDone) return <PinLock />
+
+  // Finance data loading
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -65,7 +96,6 @@ export default function App() {
     )
   }
 
-  // Inner pages (Goals, Settings) triggered from More
   if (innerPage === 'goals') {
     return (
       <div className="flex flex-col h-full">
@@ -96,7 +126,6 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Main content */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {activeTab === 'overview' && <Overview />}
         {activeTab === 'wealth'   && <Wealth />}
@@ -104,13 +133,9 @@ export default function App() {
         {activeTab === 'more'     && <More onNavigate={(p) => setInnerPage(p)} />}
       </div>
 
-      {/* Bottom nav */}
       <BottomNav />
-
-      {/* FAB */}
       <FAB onAction={handleFabAction} />
 
-      {/* Transaction form from FAB */}
       <BottomSheet
         open={!!fabAction}
         onClose={() => setFabAction(null)}

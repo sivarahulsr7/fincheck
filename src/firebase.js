@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: 'AIzaSyCLiLNyXOGTCCCrznSiWFzXDezMBMs1L18',
@@ -14,6 +15,7 @@ export const FIREBASE_CONFIGURED = true
 
 const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
+export const auth = getAuth(app)
 
 enableIndexedDbPersistence(db).catch((err) => {
   if (err.code === 'failed-precondition') {
