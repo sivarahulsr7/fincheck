@@ -110,6 +110,13 @@ html, body, #root {
   padding: 16px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom));
   animation: slideUp 0.25s ease-out;
+  max-height: calc(92dvh - env(safe-area-inset-top));
+  display: flex;
+  flex-direction: column;
+}
+.bottom-sheet-body {
+  overflow-y: auto;
+  flex: 1;
 }
 
 .tab-pill {
