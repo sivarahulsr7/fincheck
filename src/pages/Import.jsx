@@ -3,6 +3,7 @@ import { Upload, CheckCircle, AlertCircle, Loader, FileJson } from 'lucide-react
 import { collection, doc, writeBatch } from 'firebase/firestore'
 import { db } from '../firebase'
 import { todayISO } from '../utils/formatters'
+import { useFinanceStore } from '../store/useFinanceStore'
 
 const CATEGORY_MAP = {
   TRANSPORT: 'transport',
@@ -147,6 +148,7 @@ export default function Import() {
   const [error, setError] = useState('')
   const [status, setStatus] = useState('idle')
   const fileInputRef = useRef()
+  const { destroy, init } = useFinanceStore()
 
   const handleFile = (f) => {
     if (!f) return
@@ -170,6 +172,9 @@ export default function Import() {
     setError('')
     try {
       await runImport(parsed)
+      // Force store to reconnect listeners and pull fresh data from Firestore
+      destroy()
+      init()
       setStatus('done')
     } catch (e) {
       setError(e.message || 'Import failed. Check console for details.')
@@ -190,8 +195,8 @@ export default function Import() {
       <CheckCircle size={64} className="text-green" />
       <div className="text-center">
         <h2 className="text-xl font-bold text-white mb-2">Import Complete</h2>
-        <p className="text-gray-400 text-sm">Your FinBoom data has been imported into Fin Check.</p>
-        <p className="text-gray-600 text-xs mt-2">Go back and refresh to see the data.</p>
+        <p className="text-gray-400 text-sm">Your FinBoom data is now in Fin Check.</p>
+        <p className="text-gray-500 text-xs mt-2">Tap ← Back to see your data.</p>
       </div>
     </div>
   )
