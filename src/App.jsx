@@ -12,6 +12,7 @@ import Money from './pages/Money/index'
 import More from './pages/More'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
+import Import from './pages/Import'
 import BottomSheet from './components/common/BottomSheet'
 import TransactionForm from './components/forms/TransactionForm'
 
@@ -93,6 +94,15 @@ export default function App() {
         <button onClick={() => setInnerPage(null)} className="text-green text-sm font-medium">← Back</button>
       </div>
       <Settings />
+    </div>
+  )
+
+  if (innerPage === 'import') return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-3 px-4 pt-4 pb-2 flex-shrink-0">
+        <button onClick={() => setInnerPage(null)} className="text-green text-sm font-medium">← Back</button>
+      </div>
+      <Import />
     </div>
   )
 

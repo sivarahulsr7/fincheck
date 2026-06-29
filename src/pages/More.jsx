@@ -1,4 +1,4 @@
-import { Shield, Target, TrendingUp, BarChart2, Settings, Eye, EyeOff, Sun, Moon, X } from 'lucide-react'
+import { Shield, Target, TrendingUp, BarChart2, Settings, Eye, EyeOff, Sun, Download } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 
 const MENU_ITEMS = [
@@ -7,6 +7,7 @@ const MENU_ITEMS = [
   { id: 'networth',   label: 'Net Worth',  icon: TrendingUp, color: '#3B82F6' },
   { id: 'insights',   label: 'Insights',   icon: BarChart2,  color: '#A855F7' },
   { id: 'settings',   label: 'Settings',   icon: Settings,   color: '#9CA3AF' },
+  { id: 'import',     label: 'Import',     icon: Download,   color: '#06B6D4' },
 ]
 
 export default function More({ onNavigate }) {
@@ -18,6 +19,7 @@ export default function More({ onNavigate }) {
     else if (id === 'insights') { setActiveTab('money'); setMoneySubTab('insights') }
     else if (id === 'settings') onNavigate?.('settings')
     else if (id === 'essentials') onNavigate?.('essentials')
+    else if (id === 'import') onNavigate?.('import')
   }
 
   return (
