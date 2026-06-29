@@ -1,14 +1,24 @@
 import { useState, useEffect } from 'react'
-import { Delete } from 'lucide-react'
+import { Delete, Fingerprint } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
+import { useAuthStore } from '../store/useAuthStore'
+import {
+  isBiometricAvailable,
+  isBiometricRegistered,
+  registerBiometric,
+  authenticateWithBiometric,
+} from '../utils/biometric'
 
 export default function PinLock() {
-  const { pin, pinSetupDone, isLocked, setPin, unlock, wrongPin, wrongAttempts } = useAppStore()
+  const { pin, pinSetupDone, isLocked, setPin, unlock, wrongPin, wrongAttempts, biometricEnabled, setBiometricEnabled } = useAppStore()
+  const { user } = useAuthStore()
   const [input, setInput] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
-  const [step, setStep] = useState('enter') // 'enter' | 'setup' | 'confirm'
+  const [step, setStep] = useState('enter')
   const [shake, setShake] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [showBiometricPrompt, setShowBiometricPrompt] = useState(false)
+  const [biometricAvail, setBiometricAvail] = useState(false)
 
   useEffect(() => {
     if (!pinSetupDone) setStep('setup')
@@ -17,6 +27,28 @@ export default function PinLock() {
     setConfirmPin('')
     setErrorMsg('')
   }, [pinSetupDone, isLocked])
+
+  // Check biometric availability
+  useEffect(() => {
+    isBiometricAvailable().then(setBiometricAvail)
+  }, [])
+
+  // Auto-trigger biometric when locked and enabled
+  useEffect(() => {
+    if (step === 'enter' && biometricEnabled && isBiometricRegistered()) {
+      triggerBiometric()
+    }
+  }, [step, biometricEnabled])
+
+  const triggerBiometric = async () => {
+    try {
+      await authenticateWithBiometric()
+      unlock()
+    } catch {
+      // Biometric failed or cancelled — fall through to PIN
+      setErrorMsg('Biometric failed. Enter your PIN.')
+    }
+  }
 
   const doShake = (msg = '') => {
     setShake(true)
@@ -41,6 +73,8 @@ export default function PinLock() {
       if (next.length === 4) {
         if (next === confirmPin) {
           setPin(next)
+          // After PIN setup, offer biometrics
+          if (biometricAvail) setShowBiometricPrompt(true)
         } else {
           doShake('PINs do not match. Try again.')
           setConfirmPin('')
@@ -62,22 +96,58 @@ export default function PinLock() {
 
   const handleDelete = () => setInput((s) => s.slice(0, -1))
 
+  const handleEnableBiometric = async () => {
+    try {
+      await registerBiometric(user?.uid || 'fincheck')
+      setBiometricEnabled(true)
+      setShowBiometricPrompt(false)
+      unlock()
+    } catch {
+      setShowBiometricPrompt(false)
+      unlock()
+    }
+  }
+
   const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
   const label =
     step === 'setup'   ? 'Set a 4-digit PIN' :
     step === 'confirm' ? 'Confirm your PIN' :
-    'Enter your 4-digit PIN'
+    'Enter your PIN'
 
   const subtitle =
-    step === 'setup'   ? 'You\'ll use this PIN to unlock Fin Check' :
-    step === 'confirm' ? 'Enter your PIN again' :
-    ''
+    step === 'setup'   ? "You'll use this to unlock Fin Check" :
+    step === 'confirm' ? 'Enter your PIN again to confirm' : ''
+
+  // Biometric setup prompt after PIN is set
+  if (showBiometricPrompt) {
+    return (
+      <div className="fixed inset-0 bg-[#111] flex flex-col items-center justify-center px-8 z-50"
+           style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="w-16 h-16 rounded-2xl bg-green/20 flex items-center justify-center mb-6">
+          <Fingerprint size={32} className="text-green" />
+        </div>
+        <h2 className="text-xl font-bold text-white mb-2 text-center">Enable Face ID / Touch ID?</h2>
+        <p className="text-gray-400 text-sm text-center mb-8">
+          Use biometrics to unlock Fin Check instantly. You can still use your PIN as backup.
+        </p>
+        <button
+          onClick={handleEnableBiometric}
+          className="w-full bg-green text-[#0a2010] font-semibold py-3.5 rounded-xl mb-3">
+          Enable Biometrics
+        </button>
+        <button
+          onClick={() => { setShowBiometricPrompt(false); unlock() }}
+          className="w-full text-gray-400 py-3 text-sm">
+          Skip, use PIN only
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-[#111] flex flex-col items-center justify-between z-50"
          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      {/* Logo + title */}
       <div className="flex flex-col items-center mt-16 gap-4">
         <div className="w-20 h-20 rounded-2xl bg-green flex items-center justify-center shadow-lg">
           <span className="text-[#1a3d29] font-bold text-3xl tracking-tight">FC</span>
@@ -90,19 +160,15 @@ export default function PinLock() {
           {subtitle && <p className="text-gray-500 text-xs mt-0.5">{subtitle}</p>}
         </div>
 
-        {/* PIN dots */}
-        <div className={`flex gap-4 mt-4 ${shake ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}
+        <div className={`flex gap-4 mt-4`}
              style={shake ? { animation: 'shake 0.4s ease-in-out' } : {}}>
           {[0, 1, 2, 3].map((i) => (
             <div key={i} className={`pin-dot ${input.length > i ? 'filled' : ''}`} />
           ))}
         </div>
-        {errorMsg && (
-          <p className="text-red text-xs mt-2 fade-in">{errorMsg}</p>
-        )}
+        {errorMsg && <p className="text-red text-xs mt-2">{errorMsg}</p>}
       </div>
 
-      {/* Numpad */}
       <div className="flex flex-col items-center gap-3 mb-8">
         {[KEYS.slice(0, 3), KEYS.slice(3, 6), KEYS.slice(6, 9)].map((row, ri) => (
           <div key={ri} className="flex gap-3">
@@ -114,7 +180,14 @@ export default function PinLock() {
           </div>
         ))}
         <div className="flex gap-3">
-          <div className="numpad-btn opacity-0 pointer-events-none" />
+          {/* Biometric button (bottom left) */}
+          {step === 'enter' && biometricEnabled && biometricAvail ? (
+            <button className="numpad-btn" onPointerDown={triggerBiometric}>
+              <Fingerprint size={22} />
+            </button>
+          ) : (
+            <div className="numpad-btn opacity-0 pointer-events-none" />
+          )}
           <button className="numpad-btn" onPointerDown={() => handleDigit('0')}>0</button>
           <button className="numpad-btn" onPointerDown={handleDelete}>
             <Delete size={24} />
@@ -123,7 +196,7 @@ export default function PinLock() {
 
         {step === 'enter' && (
           <p className="text-gray-500 text-xs mt-2 text-center px-8">
-            Forgot PIN? Enter incorrectly {3} times to reset
+            Forgot PIN? Enter incorrectly 3 times to reset
           </p>
         )}
       </div>

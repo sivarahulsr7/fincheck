@@ -17,9 +17,7 @@ export const useAuthStore = create((set) => ({
   authError: null,
 
   init: () => {
-    // Handle redirect result (mobile fallback)
     getRedirectResult(auth).catch(() => {})
-
     const unsub = onAuthStateChanged(auth, (user) => {
       set({ user, authLoading: false })
     })
@@ -32,7 +30,6 @@ export const useAuthStore = create((set) => ({
       await signInWithPopup(auth, provider)
     } catch (e) {
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/popup-closed-by-user') {
-        // Fallback to redirect on mobile
         await signInWithRedirect(auth, provider)
       } else {
         set({ authError: 'Could not sign in with Google. Please try again.' })
