@@ -13,7 +13,6 @@ import More from './pages/More'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
 import Import from './pages/Import'
-import BottomSheet from './components/common/BottomSheet'
 import TransactionForm from './components/forms/TransactionForm'
 
 export default function App() {
@@ -112,6 +111,25 @@ export default function App() {
     setFabAction(action)
   }
 
+  if (fabAction) {
+    const label = fabAction === 'expense' ? 'Add Expense' : fabAction === 'income' ? 'Add Income' : 'Add Transfer'
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-3 px-4 pb-3 flex-shrink-0"
+             style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
+          <button onClick={() => setFabAction(null)} className="text-green text-sm font-medium">← Back</button>
+          <span className="text-white font-semibold text-sm">{label}</span>
+        </div>
+        <div className="page-content px-4 pt-2">
+          <TransactionForm
+            type={fabAction === 'transfer' ? 'transfer' : fabAction}
+            onClose={() => setFabAction(null)}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden flex flex-col">
@@ -123,18 +141,6 @@ export default function App() {
 
       <BottomNav />
       <FAB onAction={handleFabAction} />
-
-      <BottomSheet
-        open={!!fabAction}
-        onClose={() => setFabAction(null)}
-        title={fabAction === 'expense' ? 'Add Expense' : fabAction === 'income' ? 'Add Income' : 'Add Transfer'}>
-        {fabAction && (
-          <TransactionForm
-            type={fabAction === 'transfer' ? 'transfer' : fabAction}
-            onClose={() => setFabAction(null)}
-          />
-        )}
-      </BottomSheet>
     </div>
   )
 }
