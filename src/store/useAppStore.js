@@ -7,7 +7,7 @@ export const useAppStore = create(
     (set, get) => ({
       pin: null,
       pinSetupDone: false,
-      isLocked: false,
+      isLocked: true,
       lastActive: Date.now(),
       wrongAttempts: 0,
       biometricEnabled: false,

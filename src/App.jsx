@@ -22,11 +22,6 @@ export default function App() {
   const [innerPage, setInnerPage] = useState(null)
   const [fabAction, setFabAction] = useState(null)
 
-  // Lock on cold start (fresh open from home screen)
-  useEffect(() => {
-    if (pinSetupDone) lock()
-  }, [])
-
   // Lock when app comes back from background
   useEffect(() => {
     const onVisibility = () => {
@@ -76,9 +71,11 @@ export default function App() {
     </div>
   )
 
+  // Show PIN screen immediately (isLocked starts true) — auth loads in background
+  // This eliminates the 2-3s splash in standalone PWA mode
+  if (isLocked || !pinSetupDone) return <PinLock />
   if (authLoading) return <Splash />
   if (!user) return <LoginScreen />
-  if (isLocked || !pinSetupDone) return <PinLock />
   if (loading) return <Splash />
 
   if (innerPage === 'goals') return (

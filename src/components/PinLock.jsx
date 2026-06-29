@@ -7,6 +7,7 @@ import {
   isBiometricRegistered,
   registerBiometric,
   authenticateWithBiometric,
+  clearBiometric,
 } from '../utils/biometric'
 
 export default function PinLock() {
@@ -19,6 +20,7 @@ export default function PinLock() {
   const [errorMsg, setErrorMsg] = useState('')
   const [showBiometricPrompt, setShowBiometricPrompt] = useState(false)
   const [biometricAvail, setBiometricAvail] = useState(false)
+  const [biometricFailed, setBiometricFailed] = useState(false)
 
   useEffect(() => {
     if (!pinSetupDone) setStep('setup')
@@ -40,17 +42,23 @@ export default function PinLock() {
     }
   }, [step, biometricEnabled])
 
+  const disableBiometric = () => {
+    clearBiometric()
+    setBiometricEnabled(false)
+    setBiometricFailed(false)
+    setErrorMsg('')
+  }
+
   const triggerBiometric = async () => {
+    setBiometricFailed(false)
     try {
       await authenticateWithBiometric()
       unlock()
-    } catch (e) {
-      // Credential was cleared (stale/mismatched) — also disable in store so it stops retrying
-      if (!isBiometricRegistered()) {
-        setBiometricEnabled(false)
-      }
-      const cancelled = e.name === 'NotAllowedError' && isBiometricRegistered()
-      setErrorMsg(cancelled ? 'Biometric cancelled. Enter your PIN.' : 'Biometric unavailable. Enter your PIN.')
+    } catch {
+      // If credential was cleared inside authenticateWithBiometric, also disable in store
+      if (!isBiometricRegistered()) setBiometricEnabled(false)
+      setBiometricFailed(true)
+      setErrorMsg('Biometric failed. Enter your PIN.')
     }
   }
 
@@ -171,6 +179,12 @@ export default function PinLock() {
           ))}
         </div>
         {errorMsg && <p className="text-red text-xs mt-2">{errorMsg}</p>}
+        {biometricFailed && biometricEnabled && (
+          <button onPointerDown={disableBiometric}
+            className="text-gray-500 text-xs underline mt-1">
+            Disable Face ID / Touch ID
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col items-center gap-3 mb-8">
