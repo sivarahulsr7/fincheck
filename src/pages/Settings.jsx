@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete } from 'lucide-react'
+import { useFinanceStore } from '../store/useFinanceStore'
+import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, TrendingUp } from 'lucide-react'
 import BottomSheet from '../components/common/BottomSheet'
 import {
   isBiometricAvailable, isBiometricRegistered, registerBiometric, clearBiometric
@@ -12,6 +13,11 @@ const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 export default function Settings() {
   const { pin, pinSetupDone, setPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user } = useAuthStore()
+  const { transactions, convertInvestmentsToAssets } = useFinanceStore()
+  const investmentCount = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense').length
+  const [showMigrate, setShowMigrate] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [migratedCount, setMigratedCount] = useState(null)
   const [showPinChange, setShowPinChange] = useState(false)
   const [biometricAvail, setBiometricAvail] = useState(false)
   const [biometricLoading, setBiometricLoading] = useState(false)
@@ -65,6 +71,13 @@ export default function Settings() {
     }
   }
 
+  const handleMigrate = async () => {
+    setMigrating(true)
+    const n = await convertInvestmentsToAssets()
+    setMigratedCount(n)
+    setMigrating(false)
+  }
+
   const rows = [
     {
       group: 'Security',
@@ -104,6 +117,17 @@ export default function Settings() {
         },
       ]
     },
+    ...(investmentCount > 0 ? [{
+      group: 'Data',
+      items: [
+        {
+          icon: <TrendingUp size={16} className="text-green" />,
+          label: 'Convert Investment Expenses',
+          sublabel: `${investmentCount} investment transaction${investmentCount !== 1 ? 's' : ''} → Assets`,
+          action: () => setShowMigrate(true),
+        },
+      ]
+    }] : []),
     {
       group: 'About',
       items: [
@@ -149,6 +173,47 @@ export default function Settings() {
           </div>
         </div>
       ))}
+
+      {/* Investment migration sheet */}
+      <BottomSheet open={showMigrate} onClose={() => { setShowMigrate(false); setMigratedCount(null) }}
+        title="Convert Investments to Assets">
+        {migratedCount !== null ? (
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-green-tint flex items-center justify-center">
+              <TrendingUp size={24} className="text-green" />
+            </div>
+            <p className="text-white font-semibold text-center">
+              {migratedCount} investment{migratedCount !== 1 ? 's' : ''} converted to assets
+            </p>
+            <p className="text-gray-400 text-sm text-center">
+              You can now see and edit them in Wealth → Assets.
+            </p>
+            <button onClick={() => { setShowMigrate(false); setMigratedCount(null) }}
+              className="w-full py-3.5 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
+              Done
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <p className="text-gray-400 text-sm">
+              This will convert <span className="text-white font-semibold">{investmentCount} investment expense{investmentCount !== 1 ? 's' : ''}</span> into equity assets.
+            </p>
+            <ul className="text-xs text-gray-500 space-y-1.5">
+              <li>· Each investment becomes an asset with the same name and amount</li>
+              <li>· Your account balances stay unchanged (money correctly left the account)</li>
+              <li>· The original expense transactions are removed</li>
+            </ul>
+            <div className="flex gap-3 mt-2">
+              <button onClick={() => setShowMigrate(false)}
+                className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Cancel</button>
+              <button onClick={handleMigrate} disabled={migrating}
+                className="flex-1 py-3 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
+                {migrating ? 'Converting…' : 'Convert All'}
+              </button>
+            </div>
+          </div>
+        )}
+      </BottomSheet>
 
       {/* PIN change sheet — uses same numpad as lock screen */}
       <BottomSheet open={showPinChange} onClose={resetPinSheet}

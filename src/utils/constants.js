@@ -2,7 +2,6 @@ export const CATEGORIES = [
   // Expense categories
   { id: 'parents',     name: 'Parents',        type: 'expense', color: '#9CA3AF', bg: '#374151', icon: 'tag' },
   { id: 'emi',         name: 'EMI & Loans',    type: 'expense', color: '#F97316', bg: '#431407', icon: 'credit-card' },
-  { id: 'investment',  name: 'Investment',     type: 'expense', color: '#4CAF76', bg: '#052e16', icon: 'pie-chart' },
   { id: 'housing',     name: 'Housing & Rent', type: 'expense', color: '#A855F7', bg: '#2e1065', icon: 'home' },
   { id: 'transport',   name: 'Transport',      type: 'expense', color: '#3B82F6', bg: '#1e3a5f', icon: 'car' },
   { id: 'food',        name: 'Food & Dining',  type: 'expense', color: '#22C55E', bg: '#052e16', icon: 'utensils' },

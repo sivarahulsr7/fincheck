@@ -307,6 +307,56 @@ export const useFinanceStore = create(
         return deleteDoc(docRef('budgets', id))
       },
 
+      // ── Migration: Investment expenses → Assets ───────────────────────────
+      convertInvestmentsToAssets: async () => {
+        const { transactions } = get()
+        const inv = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense')
+        if (inv.length === 0) return 0
+
+        if (!FIREBASE_CONFIGURED) {
+          const newAssets = inv.map((tx) => ({
+            id: crypto.randomUUID(),
+            name: tx.description || 'Investment',
+            assetType: 'equity',
+            investedAmount: Number(tx.amount),
+            currentValue: Number(tx.amount),
+            units: null,
+            purchaseDate: tx.date,
+            notes: 'Converted from investment expense',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }))
+          // Add assets, remove transactions — DO NOT touch account balances:
+          // the account was correctly debited when the expense was recorded.
+          set((s) => ({
+            assets: [...s.assets, ...newAssets],
+            transactions: s.transactions.filter((t) => !(t.categoryId === 'investment' && t.type === 'expense')),
+          }))
+          return inv.length
+        }
+
+        const batch = writeBatch(db)
+        inv.forEach((tx) => {
+          const assetId = newId()
+          batch.set(docRef('assets', assetId), {
+            id: assetId,
+            name: tx.description || 'Investment',
+            assetType: 'equity',
+            investedAmount: Number(tx.amount),
+            currentValue: Number(tx.amount),
+            units: null,
+            purchaseDate: tx.date,
+            notes: 'Converted from investment expense',
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          })
+          batch.delete(docRef('transactions', tx.id))
+          // No balance change — account was correctly debited when expense was recorded
+        })
+        await batch.commit()
+        return inv.length
+      },
+
       // ── Computed ──────────────────────────────────────────────────────────
       getNetWorth: () => {
         const { accounts, assets, liabilities } = get()
