@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { getFirestore, enableIndexedDbPersistence } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 
 const firebaseConfig = {
@@ -14,15 +14,12 @@ const firebaseConfig = {
 export const FIREBASE_CONFIGURED = true
 
 const app = initializeApp(firebaseConfig)
-export const db = getFirestore(app)
-export const auth = getAuth(app)
 
-enableIndexedDbPersistence(db).catch((err) => {
-  if (err.code === 'failed-precondition') {
-    console.warn('Offline persistence unavailable: multiple tabs open')
-  } else if (err.code === 'unimplemented') {
-    console.warn('Offline persistence not supported in this browser')
-  }
+// persistentLocalCache: onSnapshot fires instantly from IndexedDB cache,
+// then again when fresh data arrives — makes second+ loads feel instant
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache(),
 })
+export const auth = getAuth(app)
 
 export default app

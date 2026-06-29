@@ -33,6 +33,7 @@ export async function registerBiometric(userId) {
       authenticatorSelection: {
         authenticatorAttachment: 'platform',
         userVerification: 'required',
+        residentKey: 'preferred',
       },
       timeout: 60000,
     },
@@ -49,15 +50,23 @@ export async function authenticateWithBiometric() {
   const credId = Uint8Array.from(atob(stored), (c) => c.charCodeAt(0))
   const challenge = crypto.getRandomValues(new Uint8Array(32))
 
-  await navigator.credentials.get({
-    publicKey: {
-      challenge,
-      allowCredentials: [{ type: 'public-key', id: credId }],
-      userVerification: 'required',
-      timeout: 60000,
-    },
-  })
-  return true
+  try {
+    await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{ type: 'public-key', id: credId }],
+        userVerification: 'required',
+        timeout: 60000,
+      },
+    })
+    return true
+  } catch (e) {
+    // Credential no longer exists (wrong context, device restore, etc.) — clear stale ID
+    if (e.name === 'NotAllowedError' || e.name === 'InvalidStateError' || e.name === 'NotFoundError') {
+      clearBiometric()
+    }
+    throw e
+  }
 }
 
 export function clearBiometric() {

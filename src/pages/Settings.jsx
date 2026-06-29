@@ -1,11 +1,38 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { ChevronRight, Shield, Eye, EyeOff, Sun, Moon, Smartphone, Info } from 'lucide-react'
+import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info } from 'lucide-react'
 import BottomSheet from '../components/common/BottomSheet'
+import {
+  isBiometricAvailable, isBiometricRegistered, registerBiometric, clearBiometric
+} from '../utils/biometric'
+import { useAuthStore } from '../store/useAuthStore'
 
 export default function Settings() {
-  const { pin, pinSetupDone, setPin, balancesHidden, toggleBalances, lock } = useAppStore()
+  const { pin, pinSetupDone, setPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
+  const { user } = useAuthStore()
   const [showPinChange, setShowPinChange] = useState(false)
+  const [biometricAvail, setBiometricAvail] = useState(false)
+  const [biometricLoading, setBiometricLoading] = useState(false)
+
+  useEffect(() => { isBiometricAvailable().then(setBiometricAvail) }, [])
+
+  const handleBiometricToggle = async () => {
+    if (biometricEnabled) {
+      clearBiometric()
+      setBiometricEnabled(false)
+      return
+    }
+    if (!biometricAvail) return
+    setBiometricLoading(true)
+    try {
+      await registerBiometric(user?.uid || 'fincheck')
+      setBiometricEnabled(true)
+    } catch {
+      // User cancelled or unavailable — silently ignore
+    } finally {
+      setBiometricLoading(false)
+    }
+  }
   const [newPin, setNewPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [step, setStep] = useState(1)
@@ -33,6 +60,20 @@ export default function Settings() {
           sublabel: pinSetupDone ? 'Change your 4-digit PIN' : 'Set up a PIN',
           action: () => setShowPinChange(true),
         },
+        ...(biometricAvail ? [{
+          icon: <Fingerprint size={16} className={biometricEnabled ? 'text-green' : 'text-gray-400'} />,
+          label: 'Face ID / Touch ID',
+          sublabel: biometricLoading
+            ? 'Setting up…'
+            : biometricEnabled
+              ? 'Enabled — tap to disable'
+              : isBiometricRegistered()
+                ? 'Re-register biometric'
+                : 'Tap to enable',
+          toggle: true,
+          value: biometricEnabled,
+          onToggle: handleBiometricToggle,
+        }] : []),
         {
           icon: <Shield size={16} className="text-orange" />,
           label: 'Lock Now',

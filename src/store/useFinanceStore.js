@@ -97,8 +97,8 @@ export const useFinanceStore = create(
 
         ;['accounts', 'transactions', 'recurring', 'assets', 'liabilities', 'goals', 'budgets'].forEach((c) => listen(c, c))
 
-        // Safety timeout
-        setTimeout(() => { if (get().loading) set({ loading: false }) }, 5000)
+        // Safety timeout — with IndexedDB cache, onSnapshot fires fast; 2s fallback covers slow connections
+        setTimeout(() => { if (get().loading) set({ loading: false }) }, 2000)
         set({ _unsubs: unsubs })
       },
 

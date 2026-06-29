@@ -44,9 +44,13 @@ export default function PinLock() {
     try {
       await authenticateWithBiometric()
       unlock()
-    } catch {
-      // Biometric failed or cancelled — fall through to PIN
-      setErrorMsg('Biometric failed. Enter your PIN.')
+    } catch (e) {
+      // Credential was cleared (stale/mismatched) — also disable in store so it stops retrying
+      if (!isBiometricRegistered()) {
+        setBiometricEnabled(false)
+      }
+      const cancelled = e.name === 'NotAllowedError' && isBiometricRegistered()
+      setErrorMsg(cancelled ? 'Biometric cancelled. Enter your PIN.' : 'Biometric unavailable. Enter your PIN.')
     }
   }
 
