@@ -10,7 +10,7 @@ import { useAuthStore } from '../store/useAuthStore'
 
 const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-export default function Settings() {
+export default function Settings({ onBack }) {
   const { pin, pinSetupDone, setPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user } = useAuthStore()
   const { transactions, convertInvestmentsToAssets } = useFinanceStore()
@@ -143,7 +143,12 @@ export default function Settings() {
 
   return (
     <div className="page-content px-4 pt-4">
-      <h1 className="text-xl font-bold text-white mb-4">Settings</h1>
+      <div className="flex items-center gap-3 mb-5" style={{ paddingTop: 'max(env(safe-area-inset-top), 4px)' }}>
+        {onBack && (
+          <button onClick={onBack} className="text-green text-sm font-medium mr-1">← Back</button>
+        )}
+        <h1 className="text-xl font-bold text-white">Settings</h1>
+      </div>
 
       {rows.map((group) => (
         <div key={group.group} className="mb-5">

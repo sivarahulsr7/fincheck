@@ -96,8 +96,7 @@ export default function App() {
 
   if (innerPage === 'settings') return (
     <div className="flex flex-col h-full">
-      <BackHeader onBack={() => setInnerPage(null)} />
-      <Settings />
+      <Settings onBack={() => setInnerPage(null)} />
     </div>
   )
 
