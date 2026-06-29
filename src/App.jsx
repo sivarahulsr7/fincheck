@@ -133,7 +133,7 @@ export default function App() {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden flex flex-col">
-        {activeTab === 'overview' && <Overview />}
+        {activeTab === 'overview' && <Overview onNavigate={setInnerPage} onFabAction={setFabAction} />}
         {activeTab === 'wealth'   && <Wealth />}
         {activeTab === 'money'    && <Money />}
         {activeTab === 'more'     && <More onNavigate={(p) => setInnerPage(p)} />}
