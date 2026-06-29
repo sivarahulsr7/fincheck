@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { INACTIVITY_TIMEOUT, PIN_RESET_ATTEMPTS } from '../utils/constants'
+import { PIN_RESET_ATTEMPTS } from '../utils/constants'
 
 export const useAppStore = create(
   persist(
@@ -33,11 +33,6 @@ export const useAppStore = create(
 
       setBiometricEnabled: (val) => set({ biometricEnabled: val }),
 
-      checkInactivity: () => {
-        const { lastActive, isLocked, pinSetupDone } = get()
-        if (!pinSetupDone || isLocked) return
-        if (Date.now() - lastActive > INACTIVITY_TIMEOUT) set({ isLocked: true })
-      },
       touchActivity: () => set({ lastActive: Date.now() }),
       toggleBalances: () => set((s) => ({ balancesHidden: !s.balancesHidden })),
       setActiveTab: (tab) => set({ activeTab: tab }),
@@ -51,7 +46,6 @@ export const useAppStore = create(
         pinSetupDone: s.pinSetupDone,
         balancesHidden: s.balancesHidden,
         biometricEnabled: s.biometricEnabled,
-        lastActive: s.lastActive,
       }),
     }
   )
