@@ -18,14 +18,14 @@ export default function Wealth() {
           const key = tab.toLowerCase().replace(' ', '-')
           const isActive = active === key
           return (
-            <button key={tab} onClick={() => setWealthSubTab(key)}
+            <button key={tab} onPointerDown={() => setWealthSubTab(key)}
               className={`flex-1 pb-2.5 text-xs font-semibold transition-all border-b-2 -mb-px ${isActive ? 'text-green border-green' : 'text-gray-500 border-transparent'}`}>
               {tab}
             </button>
           )
         })}
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {active === 'assets'      && <Assets />}
         {active === 'liabilities' && <Liabilities />}
         {active === 'net-worth'   && <NetWorthHistory />}

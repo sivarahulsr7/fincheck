@@ -69,23 +69,27 @@ export default function Transactions({ onAdd }) {
       })
   }, [transactions, typeFilter, accountFilter, catFilter, monthFilter, search, thisMonthStart])
 
-  const totalExpense = filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-  const totalIncome  = filtered.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
+  const totalExpense = useMemo(() => filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0), [filtered])
+  const totalIncome  = useMemo(() => filtered.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0), [filtered])
 
-  const monthlyTxs = transactions.filter((t) => t.type === 'expense')
-  const months = new Set(monthlyTxs.map((t) => monthKey(t.date))).size || 1
-  const monthlyAvg = monthlyTxs.reduce((s, t) => s + Number(t.amount), 0) / months
+  const monthlyAvg = useMemo(() => {
+    const exp = transactions.filter((t) => t.type === 'expense')
+    const months = new Set(exp.map((t) => monthKey(t.date))).size || 1
+    return exp.reduce((s, t) => s + Number(t.amount), 0) / months
+  }, [transactions])
 
-  // Category carousel — amounts from filtered list
-  const carouselCats = CATEGORIES.filter((c) => c.type === (typeFilter === 'Income' ? 'income' : 'expense'))
-  const catAmounts = carouselCats.map((cat) => {
-    const amt = filtered.filter((t) => t.categoryId === cat.id).reduce((s, t) => s + Number(t.amount), 0)
-    return { ...cat, amt }
-  }).filter((c) => c.amt > 0)
+  const catAmounts = useMemo(() => {
+    const cats = CATEGORIES.filter((c) => c.type === (typeFilter === 'Income' ? 'income' : 'expense'))
+    return cats.map((cat) => {
+      const amt = filtered.filter((t) => t.categoryId === cat.id).reduce((s, t) => s + Number(t.amount), 0)
+      return { ...cat, amt }
+    }).filter((c) => c.amt > 0)
+  }, [filtered, typeFilter])
 
-  const lastEntry = transactions.length > 0
-    ? daysAgo([...transactions].sort((a, b) => b.date.localeCompare(a.date))[0]?.date)
-    : null
+  const lastEntry = useMemo(() => {
+    if (!transactions.length) return null
+    return daysAgo([...transactions].sort((a, b) => b.date.localeCompare(a.date))[0]?.date)
+  }, [transactions])
 
   // Date-grouped transactions
   const grouped = useMemo(() => {

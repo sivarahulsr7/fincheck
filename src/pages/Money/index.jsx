@@ -22,7 +22,7 @@ export default function Money() {
         {SUB_TABS.map((tab) => {
           const isActive = active === tab.toLowerCase()
           return (
-            <button key={tab} onClick={() => setMoneySubTab(tab.toLowerCase())}
+            <button key={tab} onPointerDown={() => setMoneySubTab(tab.toLowerCase())}
               className={`flex-1 pb-2.5 text-xs font-semibold transition-all border-b-2 -mb-px ${isActive ? 'text-green border-green' : 'text-gray-500 border-transparent'}`}>
               {tab}
             </button>
@@ -31,7 +31,7 @@ export default function Money() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {active === 'transactions' && <Transactions onAdd={(t) => setAddType(t)} />}
         {active === 'budget'       && <Budget />}
         {active === 'accounts'     && <Accounts />}
