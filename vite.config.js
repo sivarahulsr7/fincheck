@@ -20,8 +20,8 @@ export default defineConfig({
         background_color: '#0a0a0a',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: '/fincheck/',
+        start_url: '/fincheck/',
         icons: [
           { src: '/fincheck/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/fincheck/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
