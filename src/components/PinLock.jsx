@@ -11,7 +11,7 @@ import {
 } from '../utils/biometric'
 
 export default function PinLock() {
-  const { pin, pinSetupDone, isLocked, setPin, unlock, wrongPin, wrongAttempts, biometricEnabled, setBiometricEnabled } = useAppStore()
+  const { pinSetupDone, isLocked, setPin, unlock, verifyPin, wrongPin, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user, signOut } = useAuthStore()
   const [input, setInput] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
@@ -70,7 +70,7 @@ export default function PinLock() {
     setTimeout(() => setShake(false), 500)
   }
 
-  const handleDigit = (d) => {
+  const handleDigit = async (d) => {
     if (input.length >= 4) return
     const next = input + d
 
@@ -91,7 +91,7 @@ export default function PinLock() {
             setPendingPin(next)
             setShowBiometricPrompt(true)
           } else {
-            setPin(next)
+            await setPin(next)
           }
         } else {
           doShake('PINs do not match. Try again.')
@@ -102,7 +102,7 @@ export default function PinLock() {
     } else {
       setInput(next)
       if (next.length === 4) {
-        if (next === pin) {
+        if (await verifyPin(next)) {
           unlock()
         } else {
           const didReset = wrongPin()
@@ -127,13 +127,13 @@ export default function PinLock() {
       setBiometricEnabled(true)
     } catch { /* registration cancelled — fall through to PIN-only */ }
     setShowBiometricPrompt(false)
-    setPin(pendingPin) // commits the PIN and unlocks
+    await setPin(pendingPin) // commits the PIN and unlocks
     setPendingPin('')
   }
 
-  const skipBiometric = () => {
+  const skipBiometric = async () => {
     setShowBiometricPrompt(false)
-    setPin(pendingPin) // commits the PIN and unlocks
+    await setPin(pendingPin) // commits the PIN and unlocks
     setPendingPin('')
   }
 

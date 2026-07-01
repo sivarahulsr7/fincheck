@@ -1,11 +1,14 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { PIN_RESET_ATTEMPTS } from '../utils/constants'
+import { cryptoAvailable, genSalt, hashPin } from '../utils/pinCrypto'
 
 export const useAppStore = create(
   persist(
     (set, get) => ({
-      pin: null,
+      pin: null,          // legacy plaintext (pre-hashing); upgraded on init
+      pinHash: null,      // PBKDF2 hash of the PIN
+      pinSalt: null,      // per-install salt for the hash
       pinSetupDone: false,
       isLocked: true,
       lastActive: Date.now(),
@@ -17,7 +20,41 @@ export const useAppStore = create(
       moneySubTab: 'transactions',
       wealthSubTab: 'assets',
 
-      setPin: (pin) => set({ pin, pinSetupDone: true, isLocked: false }),
+      // Store a salted hash, never the raw PIN (falls back to plaintext only
+      // when crypto.subtle is unavailable, e.g. a non-secure context).
+      setPin: async (pin) => {
+        if (cryptoAvailable()) {
+          const salt = genSalt()
+          const hash = await hashPin(pin, salt)
+          set({ pinHash: hash, pinSalt: salt, pin: null, pinSetupDone: true, isLocked: false, wrongAttempts: 0 })
+        } else {
+          set({ pin, pinHash: null, pinSalt: null, pinSetupDone: true, isLocked: false, wrongAttempts: 0 })
+        }
+      },
+
+      // Async: compares against the hash, or the legacy plaintext if no hash.
+      verifyPin: async (input) => {
+        const { pinHash, pinSalt, pin } = get()
+        if (pinHash && pinSalt) {
+          try { return (await hashPin(input, pinSalt)) === pinHash } catch { return false }
+        }
+        return pin != null && input === pin
+      },
+
+      // Eagerly migrate a legacy plaintext PIN to a hash on app start. Runs for
+      // biometric users too (they never call verifyPin). Never clears the
+      // plaintext until the hash is computed AND persisted — a hashPin throw
+      // leaves the plaintext intact so the user is never locked out.
+      upgradeLegacyPin: async () => {
+        const { pin, pinHash } = get()
+        if (pinHash || pin == null || !cryptoAvailable()) return
+        try {
+          const salt = genSalt()
+          const hash = await hashPin(pin, salt)
+          set({ pinHash: hash, pinSalt: salt, pin: null }) // single atomic persist
+        } catch { /* keep plaintext — do not lock the user out */ }
+      },
+
       lock: () => set({ isLocked: true }),
       unlock: () => set({ isLocked: false, wrongAttempts: 0, lastActive: Date.now() }),
       // On too many wrong attempts, clear the PIN and biometric but KEEP the
@@ -29,7 +66,7 @@ export const useAppStore = create(
       wrongPin: () => {
         const next = get().wrongAttempts + 1
         if (next >= PIN_RESET_ATTEMPTS) {
-          set({ pin: null, pinSetupDone: false, isLocked: true, wrongAttempts: 0, biometricEnabled: false })
+          set({ pin: null, pinHash: null, pinSalt: null, pinSetupDone: false, isLocked: true, wrongAttempts: 0, biometricEnabled: false })
           localStorage.removeItem('fincheck-biometric-id')
           return true
         }
@@ -48,7 +85,9 @@ export const useAppStore = create(
     {
       name: 'fincheck-app',
       partialize: (s) => ({
-        pin: s.pin,
+        pin: s.pin,           // legacy; null once upgraded to a hash
+        pinHash: s.pinHash,
+        pinSalt: s.pinSalt,
         pinSetupDone: s.pinSetupDone,
         balancesHidden: s.balancesHidden,
         biometricEnabled: s.biometricEnabled,

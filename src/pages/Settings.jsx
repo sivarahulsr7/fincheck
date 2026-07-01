@@ -11,7 +11,7 @@ import { useAuthStore } from '../store/useAuthStore'
 const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export default function Settings({ onBack }) {
-  const { pin, pinSetupDone, setPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
+  const { pinSetupDone, setPin, verifyPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user } = useAuthStore()
   const { transactions, convertInvestmentsToAssets } = useFinanceStore()
   const investmentCount = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense').length
@@ -49,14 +49,14 @@ export default function Settings({ onBack }) {
     setShowPinChange(false)
   }
 
-  const handlePinDigit = (d) => {
+  const handlePinDigit = async (d) => {
     if (pinInput.length >= 4) return
     const next = pinInput + d
     setPinInput(next)
     if (next.length !== 4) return
 
     if (pinStep === 0) {
-      if (next === pin) {
+      if (await verifyPin(next)) {
         setPinInput(''); setPinStep(1); setPinError('')
       } else {
         setPinError('Incorrect current PIN.'); setPinInput('')
@@ -65,7 +65,7 @@ export default function Settings({ onBack }) {
       setPinBuffer(next); setPinInput(''); setPinStep(2); setPinError('')
     } else {
       if (next === pinBuffer) {
-        setPin(next)
+        await setPin(next)
         resetPinSheet()
       } else {
         setPinError('PINs do not match. Try again.')

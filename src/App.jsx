@@ -46,6 +46,9 @@ export default function App() {
     return unsub
   }, [])
 
+  // Migrate any legacy plaintext PIN to a salted hash, once, on startup.
+  useEffect(() => { useAppStore.getState().upgradeLegacyPin() }, [])
+
   // Init finance data once logged in
   useEffect(() => {
     if (user) init()

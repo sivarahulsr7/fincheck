@@ -5,6 +5,8 @@ const reset = () => {
   localStorage.clear()
   useAppStore.setState({
     pin: null,
+    pinHash: null,
+    pinSalt: null,
     pinSetupDone: false,
     isLocked: false,
     wrongAttempts: 0,
@@ -22,6 +24,7 @@ describe('initial state', () => {
   it('has no PIN set', () => {
     const s = useAppStore.getState()
     expect(s.pin).toBeNull()
+    expect(s.pinHash).toBeNull()
     expect(s.pinSetupDone).toBe(false)
   })
 
@@ -34,18 +37,58 @@ describe('initial state', () => {
   })
 })
 
-describe('setPin', () => {
-  it('sets the PIN and marks setup done', () => {
-    useAppStore.getState().setPin('1234')
+describe('setPin (hashed)', () => {
+  it('stores a hash + salt, never the raw PIN, and marks setup done', async () => {
+    await useAppStore.getState().setPin('1234')
     const s = useAppStore.getState()
-    expect(s.pin).toBe('1234')
+    expect(s.pin).toBeNull()               // raw PIN never persisted
+    expect(s.pinHash).toMatch(/^[0-9a-f]{64}$/)
+    expect(s.pinSalt).toMatch(/^[0-9a-f]{32}$/)
     expect(s.pinSetupDone).toBe(true)
   })
 
-  it('clears lock state when PIN is set', () => {
+  it('clears lock state when PIN is set', async () => {
     useAppStore.setState({ isLocked: true })
-    useAppStore.getState().setPin('5678')
+    await useAppStore.getState().setPin('5678')
     expect(useAppStore.getState().isLocked).toBe(false)
+  })
+})
+
+describe('verifyPin', () => {
+  it('accepts the correct PIN and rejects a wrong one', async () => {
+    await useAppStore.getState().setPin('1234')
+    expect(await useAppStore.getState().verifyPin('1234')).toBe(true)
+    expect(await useAppStore.getState().verifyPin('0000')).toBe(false)
+  })
+
+  it('verifies against a legacy plaintext PIN when no hash exists', async () => {
+    useAppStore.setState({ pin: '4321', pinHash: null, pinSalt: null, pinSetupDone: true })
+    expect(await useAppStore.getState().verifyPin('4321')).toBe(true)
+    expect(await useAppStore.getState().verifyPin('1111')).toBe(false)
+  })
+})
+
+describe('upgradeLegacyPin', () => {
+  it('migrates a plaintext PIN to a hash and clears the plaintext', async () => {
+    useAppStore.setState({ pin: '2468', pinHash: null, pinSalt: null, pinSetupDone: true })
+    await useAppStore.getState().upgradeLegacyPin()
+    const s = useAppStore.getState()
+    expect(s.pin).toBeNull()
+    expect(s.pinHash).toMatch(/^[0-9a-f]{64}$/)
+    // the upgraded hash still verifies the original PIN
+    expect(await useAppStore.getState().verifyPin('2468')).toBe(true)
+  })
+
+  it('is a no-op when a hash already exists', async () => {
+    await useAppStore.getState().setPin('1234')
+    const before = useAppStore.getState().pinHash
+    await useAppStore.getState().upgradeLegacyPin()
+    expect(useAppStore.getState().pinHash).toBe(before)
+  })
+
+  it('does nothing when there is no PIN at all', async () => {
+    await useAppStore.getState().upgradeLegacyPin()
+    expect(useAppStore.getState().pinHash).toBeNull()
   })
 })
 
@@ -65,8 +108,8 @@ describe('lock / unlock', () => {
 })
 
 describe('wrongPin', () => {
-  beforeEach(() => {
-    useAppStore.getState().setPin('1234')
+  beforeEach(async () => {
+    await useAppStore.getState().setPin('1234')
     useAppStore.getState().lock()
   })
 
