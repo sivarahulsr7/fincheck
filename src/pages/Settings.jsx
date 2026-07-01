@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
-import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, TrendingUp } from 'lucide-react'
+import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, TrendingUp, Lock } from 'lucide-react'
 import BottomSheet from '../components/common/BottomSheet'
 import {
   isBiometricAvailable, isBiometricRegistered, registerBiometric, clearBiometric
@@ -13,11 +13,31 @@ const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 export default function Settings({ onBack }) {
   const { pinSetupDone, setPin, verifyPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user } = useAuthStore()
-  const { transactions, convertInvestmentsToAssets } = useFinanceStore()
+  const { transactions, convertInvestmentsToAssets, migrateDataToPrivate, dataMigrated, destroy, init } = useFinanceStore()
   const investmentCount = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense').length
   const [showMigrate, setShowMigrate] = useState(false)
   const [migrating, setMigrating] = useState(false)
   const [migratedCount, setMigratedCount] = useState(null)
+
+  // Per-user data isolation migration
+  const [showPrivate, setShowPrivate] = useState(false)
+  const [privateBusy, setPrivateBusy] = useState(false)
+  const [privateResult, setPrivateResult] = useState(null)
+  const [privateError, setPrivateError] = useState('')
+
+  const runPrivateMigration = async () => {
+    setPrivateBusy(true); setPrivateError('')
+    try {
+      const res = await migrateDataToPrivate()
+      setPrivateResult(res)
+      // Re-attach listeners against the now-private scope.
+      destroy(); init()
+    } catch (e) {
+      setPrivateError(e.message || 'Migration failed. Your data is unchanged — safe to retry.')
+    } finally {
+      setPrivateBusy(false)
+    }
+  }
   const [showPinChange, setShowPinChange] = useState(false)
   const [biometricAvail, setBiometricAvail] = useState(false)
   const [biometricLoading, setBiometricLoading] = useState(false)
@@ -131,6 +151,14 @@ export default function Settings({ onBack }) {
             : 'No investment expenses found',
           action: () => setShowMigrate(true),
         },
+        {
+          icon: <Lock size={16} className={dataMigrated ? 'text-green' : 'text-blue-400'} />,
+          label: 'Private Data Storage',
+          sublabel: dataMigrated
+            ? 'Your data is in your private space'
+            : 'Move your data to a per-account private space',
+          action: dataMigrated ? null : () => { setPrivateResult(null); setPrivateError(''); setShowPrivate(true) },
+        },
       ]
     },
     {
@@ -183,6 +211,52 @@ export default function Settings({ onBack }) {
           </div>
         </div>
       ))}
+
+      {/* Private data storage migration sheet */}
+      <BottomSheet open={showPrivate} onClose={() => { if (!privateBusy) setShowPrivate(false) }}
+        title="Move to Private Storage">
+        {privateResult ? (
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-14 h-14 rounded-full bg-green-tint flex items-center justify-center">
+              <Lock size={24} className="text-green" />
+            </div>
+            <p className="text-white font-semibold text-center">
+              {privateResult.alreadyDone ? 'Already in private storage' : 'Your data is now private'}
+            </p>
+            {!privateResult.alreadyDone && (
+              <div className="w-full bg-card-2 rounded-xl p-3 text-xs text-gray-400 space-y-1">
+                {Object.entries(privateResult.counts).filter(([, n]) => n > 0).map(([col, n]) => (
+                  <div key={col} className="flex justify-between capitalize">
+                    <span>{col}</span><span className="text-white">{n}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button onClick={() => { setShowPrivate(false); setPrivateResult(null) }}
+              className="w-full py-3.5 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">Done</button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            <p className="text-gray-400 text-sm">
+              This copies all your data into a private space tied to your Google account.
+            </p>
+            <ul className="text-xs text-gray-500 space-y-1.5">
+              <li>· Your original data is <span className="text-gray-300">kept as a backup</span>, not deleted</li>
+              <li>· The copy is verified before switching over — if anything fails, nothing changes and you can retry</li>
+              <li>· Do this on one device; other devices pick it up automatically</li>
+            </ul>
+            {privateError && <p className="text-red text-xs">{privateError}</p>}
+            <div className="flex gap-3 mt-1">
+              <button onClick={() => setShowPrivate(false)} disabled={privateBusy}
+                className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Cancel</button>
+              <button onClick={runPrivateMigration} disabled={privateBusy}
+                className="flex-1 py-3 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
+                {privateBusy ? 'Copying…' : 'Move Data'}
+              </button>
+            </div>
+          </div>
+        )}
+      </BottomSheet>
 
       {/* Investment migration sheet */}
       <BottomSheet open={showMigrate} onClose={() => { setShowMigrate(false); setMigratedCount(null) }}

@@ -2,16 +2,31 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   collection, doc, setDoc, deleteDoc, onSnapshot,
-  writeBatch, getDoc, increment
+  writeBatch, getDoc, getDocsFromServer, increment
 } from 'firebase/firestore'
-import { db, FIREBASE_CONFIGURED } from '../firebase'
+import { db, FIREBASE_CONFIGURED, auth } from '../firebase'
 import { DEFAULT_ACCOUNTS, CATEGORIES } from '../utils/constants'
 import { todayISO } from '../utils/formatters'
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const colRef = (name) => collection(db, name)
-const docRef = (col, id) => doc(db, col, id)
+// ─── Path scoping ─────────────────────────────────────────────────────────────
+// Collections were originally top-level (flat). Per-user isolation moves them
+// under users/{uid}/... . The active scope is a function of VERIFIED migration
+// state: `scopedUid` is null (→ flat paths) until a confirmed migration flips
+// it to the uid (→ user-scoped paths). This means a failed, empty, aborted, or
+// offline migration simply keeps reading the flat data that's really there —
+// never an empty screen, always retryable.
+let scopedUid = null
+const setScope = (uid) => { scopedUid = uid || null }
+
+const DATA_COLLECTIONS = ['accounts', 'transactions', 'recurring', 'assets', 'liabilities', 'goals', 'budgets']
+
+const colRef = (name) => scopedUid ? collection(db, 'users', scopedUid, name) : collection(db, name)
+const docRef = (col, id) => scopedUid ? doc(db, 'users', scopedUid, col, id) : doc(db, col, id)
 const newId = () => doc(colRef('_')).id
+
+// The migration flag always lives in the user's private space, regardless of
+// the current scope, so init can decide which paths to use.
+const migFlagRef = (uid) => doc(db, 'users', uid, 'meta', 'migratedV2')
 
 // Net balance change a transaction applies, as { accountId: delta }.
 // Returns {} for a non-finite amount so NaN can never poison a balance.
@@ -75,6 +90,7 @@ export const useFinanceStore = create(
       categories: CATEGORIES,
       loading: true,
       initialized: false,
+      dataMigrated: false, // true once data lives under users/{uid}/...
       _unsubs: [],
 
       // ── Init ──────────────────────────────────────────────────────────────
@@ -91,7 +107,22 @@ export const useFinanceStore = create(
           return
         }
 
-        // Firebase mode
+        // Firebase mode. First decide the data scope: if this user has a
+        // verified migration flag, read from their private space; otherwise
+        // read the flat collections (unchanged behavior).
+        const uid = auth.currentUser?.uid
+        try {
+          if (uid) {
+            const flag = await getDoc(migFlagRef(uid))
+            setScope(flag.exists() ? uid : null)
+            set({ dataMigrated: flag.exists() })
+          } else {
+            setScope(null)
+          }
+        } catch {
+          setScope(null) // any error → stay on flat data (safe default)
+        }
+
         try {
           const seeded = await getDoc(docRef('meta', 'seeded'))
           if (!seeded.exists()) {
@@ -110,7 +141,7 @@ export const useFinanceStore = create(
         }
 
         const unsubs = []
-        const ready = { accounts: false, transactions: false, recurring: false, assets: false, liabilities: false, goals: false, budgets: false }
+        const ready = Object.fromEntries(DATA_COLLECTIONS.map((c) => [c, false]))
         const checkReady = () => { if (Object.values(ready).every(Boolean)) set({ loading: false }) }
 
         const listen = (col, key) => {
@@ -121,7 +152,7 @@ export const useFinanceStore = create(
           unsubs.push(unsub)
         }
 
-        ;['accounts', 'transactions', 'recurring', 'assets', 'liabilities', 'goals', 'budgets'].forEach((c) => listen(c, c))
+        DATA_COLLECTIONS.forEach((c) => listen(c, c))
 
         // Safety timeout — with IndexedDB cache, onSnapshot fires fast; 2s fallback covers slow connections
         setTimeout(() => { if (get().loading) set({ loading: false }) }, 2000)
@@ -130,7 +161,56 @@ export const useFinanceStore = create(
 
       destroy: () => {
         get()._unsubs.forEach((u) => u())
-        set({ _unsubs: [], initialized: false })
+        set({ _unsubs: [], initialized: false, loading: true })
+      },
+
+      // ── Migration: flat collections → users/{uid}/... (user-triggered) ──────
+      // Copies every collection into the user's private space, VERIFIES the
+      // copy by counting server-side, and only then sets the migration flag.
+      // The flat originals are left untouched as a backup. Returns per-collection
+      // counts. Throws (leaving scope on flat) if anything fails — never sets the
+      // flag on a partial/failed copy, so it stays fully retryable.
+      migrateDataToPrivate: async () => {
+        if (!FIREBASE_CONFIGURED) return { alreadyDone: true, counts: {} }
+        const uid = auth.currentUser?.uid
+        if (!uid) throw new Error('Not signed in.')
+        if ((await getDoc(migFlagRef(uid))).exists()) return { alreadyDone: true, counts: {} }
+
+        const counts = {}
+        for (const col of DATA_COLLECTIONS) {
+          // Force a SERVER read — a cache race returning empty is exactly the
+          // failure we must not mistake for "nothing to copy".
+          const flatSnap = await getDocsFromServer(collection(db, col))
+          const docs = flatSnap.docs
+          counts[col] = docs.length
+          for (let i = 0; i < docs.length; i += 450) {
+            const batch = writeBatch(db)
+            for (const d of docs.slice(i, i + 450)) {
+              batch.set(doc(db, 'users', uid, col, d.id), d.data())
+            }
+            await batch.commit()
+          }
+          // Read-back verification: every source doc must now exist in the
+          // private copy (>= tolerates harmless leftovers from an earlier
+          // partial run, so a retry can't get permanently stuck).
+          const copied = await getDocsFromServer(collection(db, 'users', uid, col))
+          const copiedIds = new Set(copied.docs.map((d) => d.id))
+          const missing = docs.filter((d) => !copiedIds.has(d.id))
+          if (missing.length > 0) {
+            throw new Error(`Verification failed for ${col}: ${missing.length} of ${docs.length} not copied. No changes finalized; safe to retry.`)
+          }
+        }
+
+        // Only now — every collection copied AND verified — flip the flag and
+        // mark the private space seeded so init() won't re-seed defaults.
+        const meta = writeBatch(db)
+        meta.set(migFlagRef(uid), { at: Date.now(), counts })
+        meta.set(doc(db, 'users', uid, 'meta', 'seeded'), { at: Date.now() })
+        await meta.commit()
+
+        setScope(uid)
+        set({ dataMigrated: true })
+        return { alreadyDone: false, counts }
       },
 
       // ── Accounts ──────────────────────────────────────────────────────────

@@ -5,11 +5,15 @@
 > change-PIN verification fixed; `firestore.rules` (requires auth) committed
 > **and deployed** to fincheck-sr7 — the database now rejects all
 > unauthenticated access.
-> **Deliberately deferred** (documented at the bottom): (a) full multi-tenant
-> collection restructure — would strand existing data; the auth-required rules
-> close the public hole for this single-user app; (b) PIN plaintext→hash —
-> needs a legacy-compare migration or it locks the user out. `onPointerDown`
-> on the sub-tabs was kept (it fixed the earlier "tabs freeze" report).
+> **Both formerly-deferred items are now DONE:** (a) PIN plaintext→hash
+> (PBKDF2-SHA256 + eager legacy upgrade that never clears plaintext before the
+> hash persists); (b) per-user data isolation — a user-triggered, server-read,
+> read-back-verified migration copies flat collections into /users/{uid}/…, the
+> active path is gated on the verified migration flag (a failed/empty/offline
+> migration just keeps reading the intact flat data), flat originals kept as a
+> backup, tightened `firestore.rules` scope the private space to the owner while
+> keeping flat readable. `onPointerDown` on the sub-tabs was kept (it fixed the
+> earlier "tabs freeze" report).
 
 
 A harsh, exhaustive review of the entire app by 5 parallel reviewers (data/state layer, Money section, Wealth section, app shell/auth, shared components/config). Findings are grouped by **fix tier** (blast radius), then listed by subsystem with severity, location, problem, and fix.

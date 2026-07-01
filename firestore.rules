@@ -2,15 +2,31 @@ rules_version = '2';
 
 // FinCheck Firestore security rules.
 //
-// This is a single-user personal finance app. Every document requires an
-// authenticated (Google) user — the database is NEVER open to the public.
-// Collections are currently flat (not partitioned per uid); if the app is
-// ever opened to multiple users, scope each collection under
-// /users/{uid}/... and compare request.auth.uid == uid instead.
+// Single-user personal finance app. Nothing is ever public — every rule
+// requires an authenticated (Google) user.
+//
+// Data lives in a private per-user space at /users/{uid}/... , readable and
+// writable ONLY by that user. The original top-level ("flat") collections are
+// kept auth-gated as a migration source + backup; they can be removed once the
+// private-storage migration has run on every device you use.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+
+    // Private per-user space — only the owner may touch their own data.
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // Legacy flat collections (pre-isolation). Still require auth. Migration
+    // reads these and copies them into /users/{uid}/... . Safe to delete after
+    // every device has migrated.
+    match /accounts/{doc}     { allow read, write: if request.auth != null; }
+    match /transactions/{doc} { allow read, write: if request.auth != null; }
+    match /recurring/{doc}    { allow read, write: if request.auth != null; }
+    match /assets/{doc}       { allow read, write: if request.auth != null; }
+    match /liabilities/{doc}  { allow read, write: if request.auth != null; }
+    match /goals/{doc}        { allow read, write: if request.auth != null; }
+    match /budgets/{doc}      { allow read, write: if request.auth != null; }
+    match /meta/{doc}         { allow read, write: if request.auth != null; }
   }
 }
