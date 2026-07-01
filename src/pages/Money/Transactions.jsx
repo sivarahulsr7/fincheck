@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Search, Download, MoreVertical, Check, Square, CheckSquare, Pencil, Trash2, ArrowLeftRight } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Search, Download, MoreVertical, Check, Square, CheckSquare, Pencil, Trash2, ArrowLeftRight, Undo2, SlidersHorizontal } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { useAppStore } from '../../store/useAppStore'
 import Amount from '../../components/common/Amount'
@@ -8,6 +8,7 @@ import { monthKey, daysAgo, todayISO, startOfMonth } from '../../utils/formatter
 import { isSpendingExpense, isInvestmentExpense } from '../../utils/txClassify'
 import CategoryIcon from '../../components/common/CategoryIcon'
 import BottomSheet from '../../components/common/BottomSheet'
+import DatePicker from '../../components/common/DatePicker'
 import TransactionForm from '../../components/forms/TransactionForm'
 
 const TYPE_FILTERS = ['Expense', 'Income', 'Transfer', 'All']
@@ -23,7 +24,7 @@ function fmtDateHeader(iso) {
 }
 
 export default function Transactions({ onAdd }) {
-  const { transactions, accounts, deleteTransaction } = useFinanceStore()
+  const { transactions, accounts, deleteTransaction, addTransaction, updateTransaction } = useFinanceStore()
   const { balancesHidden } = useAppStore()
   const [typeFilter, setTypeFilter] = useState('Expense')
   const [accountFilter, setAccountFilter] = useState('all')
@@ -36,6 +37,25 @@ export default function Transactions({ onAdd }) {
   const [menuTx, setMenuTx] = useState(null)
   const [editTx, setEditTx] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [undo, setUndo] = useState(null) // recently deleted tx, for one-tap restore
+  // Advanced filters (TXN-2)
+  const [showFilters, setShowFilters] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [amtMin, setAmtMin] = useState('')
+  const [amtMax, setAmtMax] = useState('')
+  // Bulk edit (TXN-7)
+  const [bulkEdit, setBulkEdit] = useState(false)
+
+  // Auto-dismiss the undo bar.
+  useEffect(() => {
+    if (!undo) return
+    const t = setTimeout(() => setUndo(null), 6000)
+    return () => clearTimeout(t)
+  }, [undo])
+
+  const removeTx = (tx) => { deleteTransaction(tx.id); setUndo(tx) }
+  const restoreUndo = () => { if (undo) { const { id, createdAt, updatedAt, ...data } = undo; addTransaction(data); setUndo(null) } }
 
   const thisMonthStart = useMemo(() => startOfMonth(0), [])
   const searching = search.trim().length > 0
@@ -52,6 +72,12 @@ export default function Transactions({ onAdd }) {
         }
         if (accountFilter !== 'all' && t.accountId !== accountFilter) return false
         if (catFilter && t.categoryId !== catFilter) return false
+        // Advanced date/amount range (TXN-2)
+        if (dateFrom && t.date < dateFrom) return false
+        if (dateTo && t.date > dateTo) return false
+        const amt = Number(t.amount)
+        if (amtMin !== '' && amt < Number(amtMin)) return false
+        if (amtMax !== '' && amt > Number(amtMax)) return false
         if (q) {
           const cat = CATEGORIES.find(c => c.id === t.categoryId)
           const acc = accounts.find(a => a.id === t.accountId)
@@ -71,7 +97,9 @@ export default function Transactions({ onAdd }) {
         const bTs = typeof b.createdAt === 'number' ? b.createdAt : (b.updatedAt || 0)
         return bTs - aTs
       })
-  }, [transactions, typeFilter, accountFilter, catFilter, monthFilter, search, thisMonthStart])
+  }, [transactions, typeFilter, accountFilter, catFilter, monthFilter, search, thisMonthStart, dateFrom, dateTo, amtMin, amtMax])
+
+  const activeFilterCount = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (amtMin !== '' ? 1 : 0) + (amtMax !== '' ? 1 : 0)
 
   // "Spending" excludes Investment (that's a contribution to an asset, not
   // consumption); investing is surfaced separately.
@@ -152,6 +180,10 @@ export default function Transactions({ onAdd }) {
         <div className="flex gap-2">
           <button onClick={() => setSearchOpen((o) => !o)} className="w-8 h-8 rounded-lg bg-card-2 flex items-center justify-center text-gray-400">
             <Search size={15} />
+          </button>
+          <button onClick={() => setShowFilters(true)} className="w-8 h-8 rounded-lg bg-card-2 flex items-center justify-center text-gray-400 relative">
+            <SlidersHorizontal size={15} />
+            {activeFilterCount > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green text-[#1a3d29] text-[9px] font-bold flex items-center justify-center">{activeFilterCount}</span>}
           </button>
           <button onClick={handleExport} className="w-8 h-8 rounded-lg bg-card-2 flex items-center justify-center text-gray-400">
             <Download size={15} />
@@ -251,8 +283,12 @@ export default function Transactions({ onAdd }) {
           <button onClick={() => { setSelectMode(false); setSelected(new Set()) }}
             className="text-xs text-gray-400">Cancel</button>
           <span className="text-xs text-gray-400">{selected.size} selected</span>
-          <button onClick={handleBulkDelete} disabled={!selected.size}
-            className="text-xs font-semibold text-red disabled:text-gray-600">Delete selected</button>
+          <div className="flex gap-3">
+            <button onClick={() => setBulkEdit(true)} disabled={!selected.size}
+              className="text-xs font-semibold text-green disabled:text-gray-600">Edit</button>
+            <button onClick={handleBulkDelete} disabled={!selected.size}
+              className="text-xs font-semibold text-red disabled:text-gray-600">Delete</button>
+          </div>
         </div>
       )}
 
@@ -368,14 +404,86 @@ export default function Transactions({ onAdd }) {
       {/* Delete confirm */}
       <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Transaction?">
         <p className="text-gray-400 text-sm mb-5">
-          Delete "{deleteTarget?.description || 'this transaction'}" (₹{deleteTarget?.amount})? This cannot be undone.
+          Delete "{deleteTarget?.description || 'this transaction'}" (₹{deleteTarget?.amount})? You can undo right after.
         </p>
         <div className="flex gap-3">
           <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Cancel</button>
-          <button onClick={() => { deleteTransaction(deleteTarget.id); setDeleteTarget(null) }}
+          <button onClick={() => { removeTx(deleteTarget); setDeleteTarget(null) }}
             className="flex-1 py-3 rounded-xl bg-red text-white font-semibold">Delete</button>
         </div>
       </BottomSheet>
+
+      {/* Advanced filters (TXN-2) */}
+      <BottomSheet open={showFilters} onClose={() => setShowFilters(false)} title="Filters">
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1 block">Date range</label>
+            <div className="grid grid-cols-2 gap-2">
+              <DatePicker value={dateFrom} onChange={setDateFrom} />
+              <DatePicker value={dateTo} onChange={setDateTo} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1 block">Amount range</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input type="number" inputMode="decimal" placeholder="Min ₹" value={amtMin}
+                onChange={(e) => setAmtMin(e.target.value)}
+                className="bg-card-2 border border-card-border rounded-xl px-4 py-3 text-white text-sm outline-none" />
+              <input type="number" inputMode="decimal" placeholder="Max ₹" value={amtMax}
+                onChange={(e) => setAmtMax(e.target.value)}
+                className="bg-card-2 border border-card-border rounded-xl px-4 py-3 text-white text-sm outline-none" />
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={() => { setDateFrom(''); setDateTo(''); setAmtMin(''); setAmtMax('') }}
+              className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Clear</button>
+            <button onClick={() => setShowFilters(false)}
+              className="flex-1 py-3 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">Apply</button>
+          </div>
+        </div>
+      </BottomSheet>
+
+      {/* Bulk edit (TXN-7) */}
+      <BottomSheet open={bulkEdit} onClose={() => setBulkEdit(false)} title={`Edit ${selected.size} transaction${selected.size !== 1 ? 's' : ''}`}>
+        <div className="flex flex-col gap-4">
+          <div>
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Set category</p>
+            <div className="grid grid-cols-4 gap-2">
+              {CATEGORIES.map((c) => (
+                <button key={c.id}
+                  onClick={async () => { for (const id of selected) await updateTransaction(id, { categoryId: c.id }); setBulkEdit(false); setSelectMode(false); setSelected(new Set()) }}
+                  className="flex flex-col items-center gap-1 p-2 rounded-xl border border-card-border bg-card-2">
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: c.bg }}>
+                    <span style={{ color: c.color }}><CategoryIcon icon={c.icon} size={14} /></span>
+                  </div>
+                  <span className="text-[9px] text-gray-300 text-center leading-tight">{c.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Move to account</p>
+            <div className="flex flex-col gap-2">
+              {accounts.map((a) => (
+                <button key={a.id}
+                  onClick={async () => { for (const id of selected) await updateTransaction(id, { accountId: a.id }); setBulkEdit(false); setSelectMode(false); setSelected(new Set()) }}
+                  className="px-4 py-3 rounded-xl bg-card-2 text-white text-sm text-left">{a.name}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </BottomSheet>
+
+      {/* Undo bar (TXN-6) */}
+      {undo && (
+        <div className="fixed left-1/2 -translate-x-1/2 bottom-24 z-40 w-[calc(100%-2rem)] max-w-[448px]
+          bg-card-2 border border-card-border rounded-xl px-4 py-3 flex items-center justify-between shadow-lg">
+          <span className="text-sm text-gray-300">Transaction deleted</span>
+          <button onClick={restoreUndo} className="flex items-center gap-1 text-green text-sm font-semibold">
+            <Undo2 size={15} /> Undo
+          </button>
+        </div>
+      )}
     </div>
   )
 }
