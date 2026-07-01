@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db, FIREBASE_CONFIGURED, auth } from '../firebase'
 import { DEFAULT_ACCOUNTS, CATEGORIES, ASSET_TYPES } from '../utils/constants'
-import { todayISO } from '../utils/formatters'
+import { todayISO, nextRecurrence } from '../utils/formatters'
 
 // ─── Path scoping ─────────────────────────────────────────────────────────────
 // Collections were originally top-level (flat). Per-user isolation moves them
@@ -379,6 +379,37 @@ export const useFinanceStore = create(
       deleteRecurring: (id) => {
         if (!FIREBASE_CONFIGURED) return makeLocalOps(set, get, 'recurring').remove(id)
         return deleteDoc(docRef('recurring', id))
+      },
+
+      // Post any recurring items whose next date has arrived, catching up every
+      // missed occurrence. Each post reuses addTransaction (so balances and
+      // liability/asset links update), then nextDate advances by the frequency.
+      // Stops at endDate (deactivating the rule) and caps catch-up to avoid a
+      // runaway loop. Returns the number of transactions posted.
+      postDueRecurring: async () => {
+        const today = todayISO()
+        const due = get().recurring.filter(
+          (r) => r.isActive !== false && r.nextDate && r.nextDate <= today)
+        let posted = 0
+        for (const r of due) {
+          let next = r.nextDate
+          let guard = 0
+          let active = true
+          while (next <= today && guard < 120) {
+            if (r.endDate && next > r.endDate) { active = false; break }
+            await get().addTransaction({
+              type: r.type, amount: r.amount, description: r.description,
+              categoryId: r.categoryId, accountId: r.accountId, toAccountId: r.toAccountId || null,
+              liabilityId: r.liabilityId || null, assetId: r.assetId || null,
+              date: next, note: 'Recurring',
+            })
+            posted++
+            next = nextRecurrence(next, r.frequency)
+            guard++
+          }
+          await get().updateRecurring(r.id, { nextDate: next, isActive: active, lastPostedDate: today })
+        }
+        return posted
       },
 
       // ── Assets ────────────────────────────────────────────────────────────

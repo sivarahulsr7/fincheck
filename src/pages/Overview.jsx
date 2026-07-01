@@ -6,7 +6,7 @@ import Amount from '../components/common/Amount'
 import AppHeader from '../components/layout/AppHeader'
 import BottomSheet from '../components/common/BottomSheet'
 import { CATEGORIES } from '../utils/constants'
-import { fmtPct, nDaysAgo, startOfMonth } from '../utils/formatters'
+import { fmtPct, nDaysAgo, startOfMonth, toISO, fmtDate } from '../utils/formatters'
 import { isSpendingExpense, isInvestmentExpense } from '../utils/txClassify'
 
 const TIME_FILTERS = [
@@ -29,7 +29,7 @@ function monthsForFilter(filter) {
 
 export default function Overview({ onNavigate, onFabAction }) {
   const { showLiabilities, setActiveTab, setMoneySubTab, setWealthSubTab } = useAppStore()
-  const { transactions, accounts, assets, liabilities, goals, getNetWorth } = useFinanceStore()
+  const { transactions, accounts, assets, liabilities, goals, recurring, getNetWorth } = useFinanceStore()
   const [cfFilter, setCfFilter] = useState('30d')
   const [mFilter, setMFilter] = useState('1M')
   const [cashflowOpen, setCashflowOpen] = useState(true)
@@ -93,6 +93,14 @@ export default function Overview({ onNavigate, onFabAction }) {
   // Loans missing an interest rate — repayments to these over-reduce principal.
   const loansNeedingInterest = liabilities.filter((l) => l.interestRate == null)
 
+  // Recurring items due within the next 7 days (overdue ones auto-post on load).
+  const weekAhead = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return toISO(d) })()
+  const upcomingRecurring = recurring
+    .filter((r) => r.isActive !== false && r.nextDate && r.nextDate <= weekAhead)
+    .sort((a, b) => (a.nextDate || '').localeCompare(b.nextDate || ''))
+
+  const alertCount = loansNeedingInterest.length + upcomingRecurring.length
+
   return (
     <div className="flex flex-col h-full">
       <AppHeader title="Overview" actions={
@@ -100,7 +108,7 @@ export default function Overview({ onNavigate, onFabAction }) {
           aria-label="Notifications"
           className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 relative">
           <Bell size={18} />
-          {loansNeedingInterest.length > 0 && (
+          {alertCount > 0 && (
             <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red" />
           )}
         </button>
@@ -356,25 +364,46 @@ export default function Overview({ onNavigate, onFabAction }) {
 
       {/* Notifications */}
       <BottomSheet open={notifOpen} onClose={() => setNotifOpen(false)} title="Notifications">
-        {loansNeedingInterest.length === 0 ? (
+        {alertCount === 0 ? (
           <p className="text-gray-400 text-sm py-4 text-center">You're all caught up.</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            <p className="text-xs text-gray-500 mb-1">
-              These loans have no interest rate set. Repayments will reduce the full amount from principal
-              (over-reducing it). Set a rate so only the principal portion is deducted.
-            </p>
-            {loansNeedingInterest.map((l) => (
-              <button key={l.id}
-                onClick={() => { setNotifOpen(false); goWealth('liabilities') }}
-                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-2 text-left">
-                <AlertCircle size={16} className="text-orange-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">{l.name}</p>
-                  <p className="text-xs text-gray-500">Tap to set interest rate →</p>
-                </div>
-              </button>
-            ))}
+          <div className="flex flex-col gap-4">
+            {upcomingRecurring.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-gray-500">Upcoming recurring (next 7 days)</p>
+                {upcomingRecurring.map((r) => (
+                  <button key={r.id}
+                    onClick={() => { setNotifOpen(false); onNavigate?.('recurring') }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-2 text-left">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{r.description || 'Recurring'}</p>
+                      <p className="text-xs text-gray-500">Due {fmtDate(r.nextDate)} →</p>
+                    </div>
+                    <Amount value={r.amount}
+                      className={`text-sm font-semibold ${r.type === 'income' ? 'text-green' : 'text-red'}`} />
+                  </button>
+                ))}
+              </div>
+            )}
+            {loansNeedingInterest.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-xs text-gray-500">
+                  These loans have no interest rate — repayments over-reduce principal. Set a rate so only
+                  the principal portion is deducted.
+                </p>
+                {loansNeedingInterest.map((l) => (
+                  <button key={l.id}
+                    onClick={() => { setNotifOpen(false); goWealth('liabilities') }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-2 text-left">
+                    <AlertCircle size={16} className="text-orange-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white truncate">{l.name}</p>
+                      <p className="text-xs text-gray-500">Tap to set interest rate →</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </BottomSheet>

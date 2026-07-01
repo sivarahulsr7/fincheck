@@ -82,3 +82,13 @@ export const nDaysAgo = (n) => {
   d.setDate(d.getDate() - n)
   return toISO(d)
 }
+
+// Next occurrence of a YYYY-MM-DD date for a recurrence frequency (local time).
+export const nextRecurrence = (iso, freq) => {
+  const d = parseLocal(iso)
+  if (freq === 'daily') d.setDate(d.getDate() + 1)
+  else if (freq === 'weekly') d.setDate(d.getDate() + 7)
+  else if (freq === 'yearly') d.setFullYear(d.getFullYear() + 1)
+  else d.setMonth(d.getMonth() + 1) // monthly (default)
+  return toISO(d)
+}

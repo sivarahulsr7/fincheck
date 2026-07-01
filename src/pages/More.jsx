@@ -1,13 +1,14 @@
-import { Target, TrendingUp, BarChart2, Settings, Download } from 'lucide-react'
+import { Target, TrendingUp, BarChart2, Settings, Download, Repeat } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import AppHeader from '../components/layout/AppHeader'
 
 const MENU_ITEMS = [
-  { id: 'goals',    label: 'Goals',     icon: Target,    color: '#F97316' },
-  { id: 'networth', label: 'Net Worth', icon: TrendingUp, color: '#3B82F6' },
-  { id: 'insights', label: 'Insights',  icon: BarChart2,  color: '#A855F7' },
-  { id: 'settings', label: 'Settings',  icon: Settings,   color: '#9CA3AF' },
-  { id: 'import',   label: 'Import',    icon: Download,   color: '#06B6D4' },
+  { id: 'goals',     label: 'Goals',     icon: Target,     color: '#F97316' },
+  { id: 'recurring', label: 'Recurring', icon: Repeat,     color: '#22C55E' },
+  { id: 'networth',  label: 'Net Worth', icon: TrendingUp, color: '#3B82F6' },
+  { id: 'insights',  label: 'Insights',  icon: BarChart2,  color: '#A855F7' },
+  { id: 'settings',  label: 'Settings',  icon: Settings,   color: '#9CA3AF' },
+  { id: 'import',    label: 'Import',    icon: Download,   color: '#06B6D4' },
 ]
 
 export default function More({ onNavigate }) {
@@ -15,6 +16,7 @@ export default function More({ onNavigate }) {
 
   const handleItem = (id) => {
     if (id === 'goals') onNavigate?.('goals')
+    else if (id === 'recurring') onNavigate?.('recurring')
     else if (id === 'networth') { setActiveTab('wealth'); setWealthSubTab('net-worth') }
     else if (id === 'insights') { setActiveTab('money'); setMoneySubTab('insights') }
     else if (id === 'settings') onNavigate?.('settings')

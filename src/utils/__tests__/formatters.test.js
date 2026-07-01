@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   fmt, fmtCompact, fmtDate, fmtMonth, fmtPct,
   todayISO, monthKey, startOfMonth, endOfMonth, daysAgo, nDaysAgo,
-  toISO, parseLocal,
+  toISO, parseLocal, nextRecurrence,
 } from '../formatters'
 
 // Local YYYY-MM-DD for a given date — the expected behavior everywhere.
@@ -89,6 +89,22 @@ describe('fmtPct', () => {
     expect(fmtPct(Infinity)).toBe('0.0%')
   })
   it('rounds to 1 decimal place', () => expect(fmtPct(5.678)).toBe('+5.7%'))
+})
+
+describe('nextRecurrence', () => {
+  it('advances by the right interval', () => {
+    expect(nextRecurrence('2024-01-15', 'daily')).toBe('2024-01-16')
+    expect(nextRecurrence('2024-01-15', 'weekly')).toBe('2024-01-22')
+    expect(nextRecurrence('2024-01-15', 'monthly')).toBe('2024-02-15')
+    expect(nextRecurrence('2024-01-15', 'yearly')).toBe('2025-01-15')
+  })
+  it('rolls over month and year boundaries', () => {
+    expect(nextRecurrence('2024-12-20', 'monthly')).toBe('2025-01-20')
+    expect(nextRecurrence('2024-12-31', 'daily')).toBe('2025-01-01')
+  })
+  it('defaults to monthly for an unknown frequency', () => {
+    expect(nextRecurrence('2024-01-15', 'wat')).toBe('2024-02-15')
+  })
 })
 
 describe('toISO / parseLocal', () => {

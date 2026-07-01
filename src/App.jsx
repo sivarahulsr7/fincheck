@@ -14,6 +14,7 @@ import More from './pages/More'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
 import Import from './pages/Import'
+import Recurring from './pages/Recurring'
 import TransactionForm from './components/forms/TransactionForm'
 import AssetForm from './components/forms/AssetForm'
 import LiabilityForm from './components/forms/LiabilityForm'
@@ -55,13 +56,17 @@ export default function App() {
     if (user) init()
   }, [user])
 
-  // One-time data hygiene once finance data has loaded: give every asset a
-  // valid type so it shows in the allocation chart. Idempotent.
+  // Once finance data has loaded: normalize asset types (for the allocation
+  // chart) and post any due recurring transactions (catching up missed ones).
   const migratedOnce = useRef(false)
   useEffect(() => {
     if (loading || !user || migratedOnce.current) return
     migratedOnce.current = true
-    useFinanceStore.getState().normalizeAssetTypes().catch(() => { /* retried next launch */ })
+    const store = useFinanceStore.getState()
+    ;(async () => {
+      try { await store.normalizeAssetTypes() } catch { /* retried next launch */ }
+      try { await store.postDueRecurring() } catch { /* retried next launch */ }
+    })()
   }, [loading, user])
 
   // Track activity (keeps lastActive fresh, no inactivity locking)
@@ -130,6 +135,13 @@ export default function App() {
   if (innerPage === 'settings') return (
     <div className="flex flex-col h-full">
       <Settings onBack={() => setInnerPage(null)} />
+    </div>
+  )
+
+  if (innerPage === 'recurring') return (
+    <div className="flex flex-col h-full">
+      <BackHeader onBack={() => setInnerPage(null)} />
+      <div className="flex-1 min-h-0 overflow-y-auto"><Recurring /></div>
     </div>
   )
 
