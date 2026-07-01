@@ -18,7 +18,11 @@ html, body, #root {
 #root {
   max-width: 480px;
   margin: 0 auto;
-  min-height: 100dvh;
+  /* Exactly the dynamic viewport — using min-height:100dvh alongside the
+     height:100% above made #root taller than the visible area in standalone
+     PWA mode (dvh includes the home-indicator region, 100% doesn't),
+     leaving dead space below the fixed bottom nav. */
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   position: relative;
