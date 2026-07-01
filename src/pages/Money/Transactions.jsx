@@ -1,10 +1,10 @@
 import { useState, useMemo } from 'react'
-import { Search, Download, MoreVertical, Check, Square, Pencil, Trash2, X, ArrowLeftRight } from 'lucide-react'
+import { Search, Download, MoreVertical, Check, Square, CheckSquare, Pencil, Trash2, ArrowLeftRight } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { useAppStore } from '../../store/useAppStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
-import { monthKey, daysAgo, todayISO } from '../../utils/formatters'
+import { monthKey, daysAgo, todayISO, startOfMonth } from '../../utils/formatters'
 import CategoryIcon from '../../components/common/CategoryIcon'
 import BottomSheet from '../../components/common/BottomSheet'
 import TransactionForm from '../../components/forms/TransactionForm'
@@ -36,19 +36,22 @@ export default function Transactions({ onAdd }) {
   const [editTx, setEditTx] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  const thisMonthStart = useMemo(() => {
-    const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]
-  }, [])
+  const thisMonthStart = useMemo(() => startOfMonth(0), [])
+  const searching = search.trim().length > 0
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
     return transactions
       .filter((t) => {
-        if (typeFilter !== 'All' && t.type !== typeFilter.toLowerCase()) return false
+        // While searching, ignore the type + month chips so a query reaches
+        // ALL records (income, transfers, and past months are otherwise hidden).
+        if (!searching) {
+          if (typeFilter !== 'All' && t.type !== typeFilter.toLowerCase()) return false
+          if (monthFilter && t.date < thisMonthStart) return false
+        }
         if (accountFilter !== 'all' && t.accountId !== accountFilter) return false
         if (catFilter && t.categoryId !== catFilter) return false
-        if (monthFilter && t.date < thisMonthStart) return false
-        if (search) {
-          const q = search.toLowerCase()
+        if (q) {
           const cat = CATEGORIES.find(c => c.id === t.categoryId)
           const acc = accounts.find(a => a.id === t.accountId)
           if (
@@ -232,10 +235,13 @@ export default function Transactions({ onAdd }) {
       )}
 
       {/* Bulk actions */}
-      {selectMode && selected.size > 0 && (
+      {selectMode && (
         <div className="flex items-center justify-between px-4 pb-2">
+          <button onClick={() => { setSelectMode(false); setSelected(new Set()) }}
+            className="text-xs text-gray-400">Cancel</button>
           <span className="text-xs text-gray-400">{selected.size} selected</span>
-          <button onClick={handleBulkDelete} className="text-xs text-red font-semibold">Delete selected</button>
+          <button onClick={handleBulkDelete} disabled={!selected.size}
+            className="text-xs font-semibold text-red disabled:text-gray-600">Delete selected</button>
         </div>
       )}
 
@@ -265,9 +271,9 @@ export default function Transactions({ onAdd }) {
                 return (
                   <div key={tx.id}
                     className="flex items-center gap-3 px-4 py-3 border-b border-card-border last:border-0"
-                    onPointerDown={() => selectMode && toggleSelect(tx.id)}>
+                    onClick={() => selectMode && toggleSelect(tx.id)}>
                     {selectMode && (
-                      <button onPointerDown={(e) => { e.stopPropagation(); toggleSelect(tx.id) }}>
+                      <button onClick={(e) => { e.stopPropagation(); toggleSelect(tx.id) }}>
                         {selected.has(tx.id)
                           ? <Check size={16} className="text-green" />
                           : <Square size={16} className="text-gray-600" />}
@@ -311,7 +317,7 @@ export default function Transactions({ onAdd }) {
                     </div>
 
                     <button
-                      onPointerDown={(e) => { e.stopPropagation(); setMenuTx(tx) }}
+                      onClick={(e) => { e.stopPropagation(); setMenuTx(tx) }}
                       className="text-gray-600 p-1 flex-shrink-0">
                       <MoreVertical size={16} />
                     </button>
@@ -333,6 +339,10 @@ export default function Transactions({ onAdd }) {
           <button onClick={() => { setDeleteTarget(menuTx); setMenuTx(null) }}
             className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-2 text-white text-sm">
             <Trash2 size={16} className="text-red" /> Delete
+          </button>
+          <button onClick={() => { setSelectMode(true); setSelected(new Set([menuTx.id])); setMenuTx(null) }}
+            className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-2 text-white text-sm">
+            <CheckSquare size={16} className="text-green" /> Select multiple
           </button>
         </div>
       </BottomSheet>

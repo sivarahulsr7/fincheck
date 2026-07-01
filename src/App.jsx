@@ -18,20 +18,27 @@ import AssetForm from './components/forms/AssetForm'
 import LiabilityForm from './components/forms/LiabilityForm'
 
 export default function App() {
-  const { isLocked, pinSetupDone, activeTab, setActiveTab, touchActivity, lock } = useAppStore()
+  const { isLocked, pinSetupDone, activeTab, touchActivity } = useAppStore()
   const { init, loading } = useFinanceStore()
   const { user, authLoading, init: initAuth } = useAuthStore()
   const [innerPage, setInnerPage] = useState(null)
   const [fabAction, setFabAction] = useState(null)
 
-  // Lock when app comes back from background
+  // Lock when the app is BACKGROUNDED (document hidden), not on resume — this
+  // protects the app-switcher snapshot from showing balances and avoids
+  // re-locking (and wiping in-progress forms) every time the app regains focus.
+  // Read store state fresh to avoid a stale-closure lock.
   useEffect(() => {
     const onVisibility = () => {
-      if (!document.hidden && pinSetupDone) lock()
+      if (document.hidden && useAppStore.getState().pinSetupDone) useAppStore.getState().lock()
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [pinSetupDone])
+  }, [])
+
+  // Reset inner-page / FAB routing when the bottom-nav tab changes so a stale
+  // inner page can never shadow the newly selected tab.
+  useEffect(() => { setInnerPage(null); setFabAction(null) }, [activeTab])
 
   // Start auth listener
   useEffect(() => {

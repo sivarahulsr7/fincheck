@@ -58,88 +58,139 @@ function newId() {
   return doc(collection(db, '_')).id
 }
 
-async function runImport(data) {
-  const batch = writeBatch(db)
-  const accountIdMap = {}
+const num = (v, fallback = 0) => {
+  const n = parseFloat(v)
+  return Number.isFinite(n) ? n : fallback
+}
+const isValidDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s)
+const isoDay = (s) => (typeof s === 'string' && s.includes('T') ? s.split('T')[0] : s)
+
+// Is this object even a FinBoom export? Reject unrelated JSON up front.
+export function isRecognizedExport(data) {
+  if (!data || typeof data !== 'object') return false
+  return ['moneyAccounts', 'transactions', 'assets', 'liabilities', 'budgets']
+    .some((k) => Array.isArray(data[k]))
+}
+
+// Build the full list of writes, validating and normalizing each row.
+// Invalid rows are skipped and counted rather than aborting the whole import
+// or writing NaN/garbage.
+export function buildWrites(data) {
   const now = Date.now()
+  const writes = []
+  const skipped = { transactions: 0, assets: 0, liabilities: 0, budgets: 0 }
+  const accountIdMap = {}
 
   for (const acc of (data.moneyAccounts || [])) {
     const id = newId()
     accountIdMap[acc.name] = id
-    batch.set(doc(db, 'accounts', id), {
+    writes.push({ col: 'accounts', id, data: {
       id,
-      name: acc.bankName || acc.name,
+      name: acc.bankName || acc.name || 'Account',
       type: ACCOUNT_TYPE_MAP[acc.type] || 'bank',
-      balance: parseFloat(acc.balance) || 0,
+      balance: num(acc.balance),
       color: '#3B82F6',
-      createdAt: acc.createdAt ? acc.createdAt.split('T')[0] : todayISO(),
+      createdAt: now,
       updatedAt: now,
-    })
+    } })
   }
 
   for (const tx of (data.transactions || [])) {
+    const type = String(tx.type || '').toLowerCase()
+    const amount = num(tx.amount, NaN)
+    // A transaction is useless without a valid type, finite amount, and date.
+    if (!['expense', 'income', 'transfer'].includes(type) || !Number.isFinite(amount) || !isValidDate(isoDay(tx.date))) {
+      skipped.transactions++
+      continue
+    }
     const id = newId()
-    batch.set(doc(db, 'transactions', id), {
+    writes.push({ col: 'transactions', id, data: {
       id,
-      type: tx.type.toLowerCase(),
-      amount: parseFloat(tx.amount),
+      type,
+      amount,
       accountId: accountIdMap[tx.account] || null,
-      categoryId: CATEGORY_MAP[tx.category] || 'other',
+      toAccountId: type === 'transfer' ? (accountIdMap[tx.toAccount] || null) : null,
+      categoryId: type === 'transfer' ? null : (CATEGORY_MAP[tx.category] || 'other'),
       description: tx.description || '',
-      date: tx.date,
+      date: isoDay(tx.date),
       notes: tx.notes || '',
-      createdAt: tx.createdAt ? tx.createdAt.split('T')[0] : tx.date,
+      createdAt: now,
       updatedAt: now,
-    })
+    } })
   }
 
   for (const asset of (data.assets || [])) {
+    const invested = num(asset.investedAmount)
+    const current = num(asset.currentValue, invested)
+    if (!asset.name || (invested <= 0 && current <= 0)) { skipped.assets++; continue }
     const id = newId()
-    batch.set(doc(db, 'assets', id), {
+    writes.push({ col: 'assets', id, data: {
       id,
       name: asset.name,
-      type: ASSET_TYPE_MAP[asset.productType] || 'other',
-      investedAmount: parseFloat(asset.investedAmount) || 0,
-      currentValue: parseFloat(asset.currentValue) || 0,
-      quantity: parseFloat(asset.quantity) || 0,
-      purchasePrice: parseFloat(asset.purchasePrice) || 0,
+      assetType: ASSET_TYPE_MAP[asset.productType] || 'other',
+      investedAmount: invested,
+      currentValue: current,
+      units: asset.quantity != null ? num(asset.quantity) : null,
+      purchaseDate: isValidDate(isoDay(asset.purchaseDate)) ? isoDay(asset.purchaseDate) : null,
       notes: asset.notes || '',
-      createdAt: asset.createdAt ? asset.createdAt.split('T')[0] : todayISO(),
+      createdAt: now,
       updatedAt: now,
-    })
+    } })
   }
 
   for (const liab of (data.liabilities || [])) {
+    const outstanding = num(liab.outstandingAmount)
+    if (!liab.name || outstanding <= 0) { skipped.liabilities++; continue }
     const id = newId()
-    batch.set(doc(db, 'liabilities', id), {
+    writes.push({ col: 'liabilities', id, data: {
       id,
       name: liab.name,
       liabType: LIAB_TYPE_MAP[liab.liabilityType] || 'other',
-      outstandingAmount: parseFloat(liab.outstandingAmount) || 0,
-      interestRate: liab.interestRate ? parseFloat(liab.interestRate) : null,
-      emi: liab.monthlyEmi ? parseFloat(liab.monthlyEmi) : null,
-      startDate: liab.startDate || todayISO(),
+      outstandingAmount: outstanding,
+      originalAmount: liab.originalAmount != null ? num(liab.originalAmount) : null,
+      interestRate: liab.interestRate != null ? num(liab.interestRate) : null,
+      emi: liab.monthlyEmi != null ? num(liab.monthlyEmi) : null,
+      startDate: isValidDate(isoDay(liab.startDate)) ? isoDay(liab.startDate) : todayISO(),
       endDate: null,
-      createdAt: liab.createdAt ? liab.createdAt.split('T')[0] : todayISO(),
+      createdAt: now,
       updatedAt: now,
-    })
+    } })
   }
 
   for (const budget of (data.budgets || [])) {
     for (const cb of (budget.categoryBudgets || [])) {
+      const limit = num(cb.amount, NaN)
+      if (!Number.isFinite(limit) || limit <= 0 || !budget.month) { skipped.budgets++; continue }
       const id = newId()
-      batch.set(doc(db, 'budgets', id), {
+      writes.push({ col: 'budgets', id, data: {
         id,
         categoryId: CATEGORY_MAP[cb.category] || 'other',
         monthKey: budget.month,
-        limit: cb.amount,
+        limit,
         spent: 0,
         updatedAt: now,
-      })
+      } })
     }
   }
 
-  await batch.commit()
+  return { writes, skipped }
+}
+
+async function runImport(data) {
+  if (!isRecognizedExport(data)) {
+    throw new Error('This file is not a recognized FinBoom export.')
+  }
+  const { writes, skipped } = buildWrites(data)
+
+  // Firestore caps a writeBatch at 500 ops — chunk to stay well under.
+  const CHUNK = 450
+  for (let i = 0; i < writes.length; i += CHUNK) {
+    const batch = writeBatch(db)
+    for (const w of writes.slice(i, i + CHUNK)) batch.set(doc(db, w.col, w.id), w.data)
+    await batch.commit()
+  }
+
+  return { imported: writes.length, skipped }
 }
 
 export default function Import() {
@@ -147,6 +198,7 @@ export default function Import() {
   const [parsed, setParsed] = useState(null)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('idle')
+  const [result, setResult] = useState(null)
   const fileInputRef = useRef()
   const { destroy, init } = useFinanceStore()
 
@@ -171,7 +223,8 @@ export default function Import() {
     setStatus('importing')
     setError('')
     try {
-      await runImport(parsed)
+      const res = await runImport(parsed)
+      setResult(res)
       // Force store to reconnect listeners and pull fresh data from Firestore
       destroy()
       init()
@@ -181,6 +234,10 @@ export default function Import() {
       setStatus('error')
     }
   }
+
+  const skippedTotal = result
+    ? Object.values(result.skipped).reduce((s, n) => s + n, 0)
+    : 0
 
   const counts = parsed ? {
     accounts: (parsed.moneyAccounts || []).length,
@@ -195,7 +252,12 @@ export default function Import() {
       <CheckCircle size={64} className="text-green" />
       <div className="text-center">
         <h2 className="text-xl font-bold text-white mb-2">Import Complete</h2>
-        <p className="text-gray-400 text-sm">Your FinBoom data is now in Fin Check.</p>
+        <p className="text-gray-400 text-sm">Imported {result?.imported ?? 0} record{result?.imported !== 1 ? 's' : ''} into Fin Check.</p>
+        {skippedTotal > 0 && (
+          <p className="text-yellow-300 text-xs mt-2">
+            Skipped {skippedTotal} invalid row{skippedTotal !== 1 ? 's' : ''} (missing amount, date, or type).
+          </p>
+        )}
         <p className="text-gray-500 text-xs mt-2">Tap ← Back to see your data.</p>
       </div>
     </div>

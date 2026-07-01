@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   collection, doc, setDoc, deleteDoc, onSnapshot,
-  writeBatch, getDoc
+  writeBatch, getDoc, increment
 } from 'firebase/firestore'
 import { db, FIREBASE_CONFIGURED } from '../firebase'
 import { DEFAULT_ACCOUNTS, CATEGORIES } from '../utils/constants'
@@ -12,6 +12,32 @@ import { todayISO } from '../utils/formatters'
 const colRef = (name) => collection(db, name)
 const docRef = (col, id) => doc(db, col, id)
 const newId = () => doc(colRef('_')).id
+
+// Net balance change a transaction applies, as { accountId: delta }.
+// Returns {} for a non-finite amount so NaN can never poison a balance.
+// Exported for unit testing the balance math.
+export function txDeltas(t) {
+  if (!t) return {}
+  const amt = Number(t.amount)
+  if (!Number.isFinite(amt)) return {}
+  if (t.type === 'expense') return { [t.accountId]: -amt }
+  if (t.type === 'income')  return { [t.accountId]: +amt }
+  if (t.type === 'transfer') {
+    const d = { [t.accountId]: -amt }
+    if (t.toAccountId) d[t.toAccountId] = (d[t.toAccountId] || 0) + amt
+    return d
+  }
+  return {}
+}
+
+export const negate = (deltas) =>
+  Object.fromEntries(Object.entries(deltas).map(([k, v]) => [k, -v]))
+
+export const mergeDeltas = (a, b) => {
+  const out = { ...a }
+  for (const [k, v] of Object.entries(b)) out[k] = (out[k] || 0) + v
+  return out
+}
 
 // ─── Local-only CRUD (used when Firebase is not configured) ───────────────────
 // State is held in Zustand + persisted via zustand/persist in localStorage.
@@ -117,112 +143,75 @@ export const useFinanceStore = create(
         if (!FIREBASE_CONFIGURED) return makeLocalOps(set, get, 'accounts').update(id, data)
         return setDoc(docRef('accounts', id), { ...data, id, updatedAt: Date.now() }, { merge: true })
       },
-      deleteAccount: (id) => {
-        if (!FIREBASE_CONFIGURED) return makeLocalOps(set, get, 'accounts').remove(id)
-        return deleteDoc(docRef('accounts', id))
+      // Block deletion when transactions still reference the account —
+      // orphaned transactions corrupt totals and cannot be balance-reversed.
+      // Returns { ok:false, count } so the UI can tell the user to clear them.
+      deleteAccount: async (id) => {
+        const count = get().transactions.filter((t) => t.accountId === id || t.toAccountId === id).length
+        if (count > 0) return { ok: false, count }
+        if (!FIREBASE_CONFIGURED) await makeLocalOps(set, get, 'accounts').remove(id)
+        else await deleteDoc(docRef('accounts', id))
+        return { ok: true }
       },
 
       // ── Transactions ──────────────────────────────────────────────────────
-      addTransaction: async (data) => {
-        const { accounts } = get()
-        const id = FIREBASE_CONFIGURED ? newId() : crypto.randomUUID()
-        const tx = { ...data, id, createdAt: Date.now(), updatedAt: Date.now() }
+      // Balance updates use Firestore increment() inside a writeBatch so the
+      // transaction doc and every affected account move atomically (no partial
+      // writes) and no stale client read is involved (no same-account edit
+      // drift). Deltas for accounts that no longer exist are dropped so we
+      // never resurrect a deleted account via merge.
+      _commitTx: async ({ txId, txWrite, txMerge, deltas, removeTxId }) => {
+        const existing = new Set(get().accounts.map((a) => a.id))
+        const applied = Object.fromEntries(
+          Object.entries(deltas).filter(([accId, v]) => existing.has(accId) && v !== 0)
+        )
 
         if (!FIREBASE_CONFIGURED) {
-          set((s) => ({ transactions: [...s.transactions, tx] }))
-        } else {
-          await setDoc(docRef('transactions', id), tx)
+          set((s) => ({
+            transactions: removeTxId
+              ? s.transactions.filter((t) => t.id !== removeTxId)
+              : txMerge
+                ? s.transactions.map((t) => t.id === txId ? { ...t, ...txWrite } : t)
+                : [...s.transactions, txWrite],
+            accounts: s.accounts.map((a) =>
+              applied[a.id] != null
+                ? { ...a, balance: (a.balance || 0) + applied[a.id], updatedAt: Date.now() }
+                : a),
+          }))
+          return
         }
 
-        // Update balances
-        const updateBal = async (accId, delta) => {
-          const acc = accounts.find((a) => a.id === accId)
-          if (!acc) return
-          const newBal = (acc.balance || 0) + delta
-          if (!FIREBASE_CONFIGURED) {
-            set((s) => ({ accounts: s.accounts.map((a) => a.id === accId ? { ...a, balance: newBal, updatedAt: Date.now() } : a) }))
-          } else {
-            await setDoc(docRef('accounts', accId), { balance: newBal, updatedAt: Date.now() }, { merge: true })
-          }
+        const batch = writeBatch(db)
+        if (removeTxId) batch.delete(docRef('transactions', removeTxId))
+        else batch.set(docRef('transactions', txId), txWrite, txMerge ? { merge: true } : undefined)
+        for (const [accId, delta] of Object.entries(applied)) {
+          batch.set(docRef('accounts', accId), { balance: increment(delta), updatedAt: Date.now() }, { merge: true })
         }
+        await batch.commit()
+      },
 
-        if (data.type === 'expense') await updateBal(data.accountId, -Number(data.amount))
-        else if (data.type === 'income') await updateBal(data.accountId, +Number(data.amount))
-        else if (data.type === 'transfer') {
-          await updateBal(data.accountId, -Number(data.amount))
-          await updateBal(data.toAccountId, +Number(data.amount))
-        }
+      addTransaction: async (data) => {
+        const amt = Number(data.amount)
+        const id = FIREBASE_CONFIGURED ? newId() : crypto.randomUUID()
+        const tx = { ...data, amount: Number.isFinite(amt) ? amt : 0, id, createdAt: Date.now(), updatedAt: Date.now() }
+        await get()._commitTx({ txId: id, txWrite: tx, deltas: txDeltas(tx) })
       },
 
       updateTransaction: async (id, data) => {
         const old = get().transactions.find((t) => t.id === id)
-
-        if (!FIREBASE_CONFIGURED) {
-          set((s) => ({ transactions: s.transactions.map((t) => t.id === id ? { ...t, ...data, updatedAt: Date.now() } : t) }))
-        } else {
-          await setDoc(docRef('transactions', id), { ...data, updatedAt: Date.now() }, { merge: true })
-        }
-
-        if (!old) return
-
-        const adjustBal = async (accId, delta) => {
-          const { accounts } = get()
-          const acc = accounts.find((a) => a.id === accId)
-          if (!acc) return
-          const newBal = (acc.balance || 0) + delta
-          if (!FIREBASE_CONFIGURED) {
-            set((s) => ({ accounts: s.accounts.map((a) => a.id === accId ? { ...a, balance: newBal, updatedAt: Date.now() } : a) }))
-          } else {
-            await setDoc(docRef('accounts', accId), { balance: newBal, updatedAt: Date.now() }, { merge: true })
-          }
-        }
-
-        // Reverse old transaction's balance effect
-        if (old.type === 'expense') await adjustBal(old.accountId, +Number(old.amount))
-        else if (old.type === 'income') await adjustBal(old.accountId, -Number(old.amount))
-        else if (old.type === 'transfer') {
-          await adjustBal(old.accountId, +Number(old.amount))
-          if (old.toAccountId) await adjustBal(old.toAccountId, -Number(old.amount))
-        }
-
-        // Apply new transaction's balance effect
-        if (data.type === 'expense') await adjustBal(data.accountId, -Number(data.amount))
-        else if (data.type === 'income') await adjustBal(data.accountId, +Number(data.amount))
-        else if (data.type === 'transfer') {
-          await adjustBal(data.accountId, -Number(data.amount))
-          if (data.toAccountId) await adjustBal(data.toAccountId, +Number(data.amount))
-        }
+        const amt = Number(data.amount)
+        const safeAmt = Number.isFinite(amt) ? amt : (old?.amount || 0)
+        const txWrite = { ...data, amount: safeAmt, updatedAt: Date.now() }
+        const merged = { ...old, ...txWrite }
+        // Net effect = reverse old, then apply new.
+        const deltas = mergeDeltas(negate(txDeltas(old)), txDeltas(merged))
+        await get()._commitTx({ txId: id, txWrite, txMerge: true, deltas })
       },
 
       deleteTransaction: async (id) => {
         const tx = get().transactions.find((t) => t.id === id)
         if (!tx) return
-
-        if (!FIREBASE_CONFIGURED) {
-          set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }))
-        } else {
-          await deleteDoc(docRef('transactions', id))
-        }
-
-        // Reverse balance
-        const { accounts } = get()
-        const reverseBal = async (accId, delta) => {
-          const acc = accounts.find((a) => a.id === accId)
-          if (!acc) return
-          const newBal = (acc.balance || 0) + delta
-          if (!FIREBASE_CONFIGURED) {
-            set((s) => ({ accounts: s.accounts.map((a) => a.id === accId ? { ...a, balance: newBal } : a) }))
-          } else {
-            await setDoc(docRef('accounts', accId), { balance: newBal, updatedAt: Date.now() }, { merge: true })
-          }
-        }
-
-        if (tx.type === 'expense') await reverseBal(tx.accountId, +Number(tx.amount))
-        else if (tx.type === 'income') await reverseBal(tx.accountId, -Number(tx.amount))
-        else if (tx.type === 'transfer') {
-          await reverseBal(tx.accountId, +Number(tx.amount))
-          await reverseBal(tx.toAccountId, -Number(tx.amount))
-        }
+        await get()._commitTx({ removeTxId: id, deltas: negate(txDeltas(tx)) })
       },
 
       // ── Recurring ─────────────────────────────────────────────────────────
@@ -308,28 +297,37 @@ export const useFinanceStore = create(
       },
 
       // ── Migration: Investment expenses → Assets ───────────────────────────
+      // Idempotent: each asset id is derived from its source transaction id,
+      // so a double-run overwrites the same asset docs instead of creating
+      // duplicates. Account balances are untouched — the account was correctly
+      // debited when the expense was recorded; the money is now an asset.
       convertInvestmentsToAssets: async () => {
         const { transactions } = get()
         const inv = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense')
         if (inv.length === 0) return 0
 
-        if (!FIREBASE_CONFIGURED) {
-          const newAssets = inv.map((tx) => ({
-            id: crypto.randomUUID(),
+        const assetFor = (tx) => {
+          const amt = Number(tx.amount)
+          const value = Number.isFinite(amt) ? amt : 0
+          return {
+            id: `from-tx-${tx.id}`,
             name: tx.description || 'Investment',
             assetType: 'equity',
-            investedAmount: Number(tx.amount),
-            currentValue: Number(tx.amount),
+            investedAmount: value,
+            currentValue: value,
             units: null,
             purchaseDate: tx.date,
             notes: 'Converted from investment expense',
             createdAt: Date.now(),
             updatedAt: Date.now(),
-          }))
-          // Add assets, remove transactions — DO NOT touch account balances:
-          // the account was correctly debited when the expense was recorded.
+          }
+        }
+
+        if (!FIREBASE_CONFIGURED) {
+          const newAssets = inv.map(assetFor)
+          const newIds = new Set(newAssets.map((a) => a.id))
           set((s) => ({
-            assets: [...s.assets, ...newAssets],
+            assets: [...s.assets.filter((a) => !newIds.has(a.id)), ...newAssets],
             transactions: s.transactions.filter((t) => !(t.categoryId === 'investment' && t.type === 'expense')),
           }))
           return inv.length
@@ -337,43 +335,24 @@ export const useFinanceStore = create(
 
         const batch = writeBatch(db)
         inv.forEach((tx) => {
-          const assetId = newId()
-          batch.set(docRef('assets', assetId), {
-            id: assetId,
-            name: tx.description || 'Investment',
-            assetType: 'equity',
-            investedAmount: Number(tx.amount),
-            currentValue: Number(tx.amount),
-            units: null,
-            purchaseDate: tx.date,
-            notes: 'Converted from investment expense',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          })
+          const asset = assetFor(tx)
+          batch.set(docRef('assets', asset.id), asset)
           batch.delete(docRef('transactions', tx.id))
-          // No balance change — account was correctly debited when expense was recorded
         })
         await batch.commit()
         return inv.length
       },
 
       // ── Computed ──────────────────────────────────────────────────────────
+      // Net worth = all account balances + assets − liabilities. Credit-card
+      // spending recorded as expenses drives that account's balance negative,
+      // so summing all balances nets debt correctly under the ledger model.
       getNetWorth: () => {
         const { accounts, assets, liabilities } = get()
-        return accounts.reduce((s, a) => s + (a.balance || 0), 0)
-          + assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)
-          - liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)
-      },
-
-      getCashflow: (days = 30) => {
-        const { transactions } = get()
-        const since = new Date(); since.setDate(since.getDate() - days)
-        const sinceStr = since.toISOString().split('T')[0]
-        const filtered = transactions.filter((t) => t.date >= sinceStr)
-        return {
-          income:  filtered.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0),
-          expense: filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0),
-        }
+        const bal = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0)
+        return accounts.reduce((s, a) => s + bal(a.balance), 0)
+          + assets.reduce((s, a) => s + bal(a.currentValue || a.investedAmount || 0), 0)
+          - liabilities.reduce((s, l) => s + bal(l.outstandingAmount || 0), 0)
       },
     }),
     {

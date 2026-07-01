@@ -14,6 +14,13 @@ export default function Accounts() {
   const [balance, setBalance] = useState('')
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleteBlocked, setDeleteBlocked] = useState(null)
+
+  const handleDelete = async () => {
+    const res = await deleteAccount(deleteTarget.id)
+    if (res && res.ok === false) setDeleteBlocked({ name: deleteTarget.name, count: res.count })
+    setDeleteTarget(null)
+  }
 
   const totalBalance = accounts.reduce((s, a) => s + (a.balance || 0), 0)
 
@@ -110,13 +117,21 @@ export default function Accounts() {
 
       <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Account?">
         <p className="text-gray-400 text-sm mb-5">
-          Delete "{deleteTarget?.name}"? The account balance will be removed. Existing transactions are kept.
+          Delete "{deleteTarget?.name}"? This can't be undone.
         </p>
         <div className="flex gap-3">
           <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Cancel</button>
-          <button onClick={() => { deleteAccount(deleteTarget.id); setDeleteTarget(null) }}
+          <button onClick={handleDelete}
             className="flex-1 py-3 rounded-xl bg-red text-white font-semibold">Delete</button>
         </div>
+      </BottomSheet>
+
+      <BottomSheet open={!!deleteBlocked} onClose={() => setDeleteBlocked(null)} title="Can't Delete Account">
+        <p className="text-gray-400 text-sm mb-5">
+          "{deleteBlocked?.name}" still has {deleteBlocked?.count} transaction{deleteBlocked?.count !== 1 ? 's' : ''} linked to it.
+          Delete or reassign those transactions first, then remove the account.
+        </p>
+        <button onClick={() => setDeleteBlocked(null)} className="w-full py-3 rounded-xl bg-card-2 text-gray-300 font-medium">Got it</button>
       </BottomSheet>
     </div>
   )
