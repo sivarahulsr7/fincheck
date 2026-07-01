@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
-import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, TrendingUp, Lock } from 'lucide-react'
+import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, Lock } from 'lucide-react'
 import BottomSheet from '../components/common/BottomSheet'
 import {
   isBiometricAvailable, isBiometricRegistered, registerBiometric, clearBiometric
@@ -13,11 +13,7 @@ const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 export default function Settings({ onBack }) {
   const { pinSetupDone, setPin, verifyPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user } = useAuthStore()
-  const { transactions, convertInvestmentsToAssets, migrateDataToPrivate, dataMigrated, destroy, init } = useFinanceStore()
-  const investmentCount = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense').length
-  const [showMigrate, setShowMigrate] = useState(false)
-  const [migrating, setMigrating] = useState(false)
-  const [migratedCount, setMigratedCount] = useState(null)
+  const { migrateDataToPrivate, dataMigrated, destroy, init } = useFinanceStore()
 
   // Per-user data isolation migration
   const [showPrivate, setShowPrivate] = useState(false)
@@ -94,13 +90,6 @@ export default function Settings({ onBack }) {
     }
   }
 
-  const handleMigrate = async () => {
-    setMigrating(true)
-    const n = await convertInvestmentsToAssets()
-    setMigratedCount(n)
-    setMigrating(false)
-  }
-
   const rows = [
     {
       group: 'Security',
@@ -143,14 +132,6 @@ export default function Settings({ onBack }) {
     {
       group: 'Data',
       items: [
-        {
-          icon: <TrendingUp size={16} className="text-green" />,
-          label: 'Convert Investment Expenses',
-          sublabel: investmentCount > 0
-            ? `${investmentCount} investment transaction${investmentCount !== 1 ? 's' : ''} → Assets`
-            : 'No investment expenses found',
-          action: () => setShowMigrate(true),
-        },
         {
           icon: <Lock size={16} className={dataMigrated ? 'text-green' : 'text-blue-400'} />,
           label: 'Private Data Storage',
@@ -252,53 +233,6 @@ export default function Settings({ onBack }) {
               <button onClick={runPrivateMigration} disabled={privateBusy}
                 className="flex-1 py-3 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
                 {privateBusy ? 'Copying…' : 'Move Data'}
-              </button>
-            </div>
-          </div>
-        )}
-      </BottomSheet>
-
-      {/* Investment migration sheet */}
-      <BottomSheet open={showMigrate} onClose={() => { setShowMigrate(false); setMigratedCount(null) }}
-        title="Convert Investments to Assets">
-        {migratedCount !== null ? (
-          <div className="flex flex-col items-center gap-4 py-4">
-            <div className="w-14 h-14 rounded-full bg-green-tint flex items-center justify-center">
-              <TrendingUp size={24} className="text-green" />
-            </div>
-            <p className="text-white font-semibold text-center">
-              {migratedCount} investment{migratedCount !== 1 ? 's' : ''} converted to assets
-            </p>
-            <p className="text-gray-400 text-sm text-center">
-              You can now see and edit them in Wealth → Assets.
-            </p>
-            <button onClick={() => { setShowMigrate(false); setMigratedCount(null) }}
-              className="w-full py-3.5 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
-              Done
-            </button>
-          </div>
-        ) : investmentCount === 0 ? (
-          <div className="flex flex-col gap-4">
-            <p className="text-gray-400 text-sm">No transactions with the "Investment" expense category were found.</p>
-            <button onClick={() => setShowMigrate(false)}
-              className="w-full py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Close</button>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            <p className="text-gray-400 text-sm">
-              This will convert <span className="text-white font-semibold">{investmentCount} investment expense{investmentCount !== 1 ? 's' : ''}</span> into equity assets.
-            </p>
-            <ul className="text-xs text-gray-500 space-y-1.5">
-              <li>· Each investment becomes an asset with the same name and amount</li>
-              <li>· Your account balances stay unchanged (money correctly left the account)</li>
-              <li>· The original expense transactions are removed</li>
-            </ul>
-            <div className="flex gap-3 mt-2">
-              <button onClick={() => setShowMigrate(false)}
-                className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Cancel</button>
-              <button onClick={handleMigrate} disabled={migrating}
-                className="flex-1 py-3 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">
-                {migrating ? 'Converting…' : 'Convert All'}
               </button>
             </div>
           </div>

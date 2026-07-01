@@ -5,7 +5,7 @@ import {
   writeBatch, getDoc, getDocsFromServer, increment
 } from 'firebase/firestore'
 import { db, FIREBASE_CONFIGURED, auth } from '../firebase'
-import { DEFAULT_ACCOUNTS, CATEGORIES } from '../utils/constants'
+import { DEFAULT_ACCOUNTS, CATEGORIES, ASSET_TYPES } from '../utils/constants'
 import { todayISO } from '../utils/formatters'
 
 // ─── Path scoping ─────────────────────────────────────────────────────────────
@@ -421,6 +421,34 @@ export const useFinanceStore = create(
         })
         await batch.commit()
         return inv.length
+      },
+
+      // ── Migration: give every asset a valid assetType ─────────────────────
+      // Assets whose assetType is missing or unrecognized don't appear grouped
+      // in the Allocation chart. Recover from a legacy `type` field (the old
+      // import wrote `type` instead of `assetType`) when it's a known type,
+      // otherwise fall back to 'other'. Idempotent.
+      normalizeAssetTypes: async () => {
+        const valid = new Set(ASSET_TYPES.map((t) => t.id))
+        const bad = get().assets.filter((a) => !valid.has(a.assetType))
+        if (bad.length === 0) return 0
+        const resolve = (a) => (valid.has(a.type) ? a.type : 'other')
+
+        if (!FIREBASE_CONFIGURED) {
+          set((s) => ({
+            assets: s.assets.map((a) => valid.has(a.assetType) ? a : { ...a, assetType: resolve(a), updatedAt: Date.now() }),
+          }))
+          return bad.length
+        }
+
+        for (let i = 0; i < bad.length; i += 450) {
+          const batch = writeBatch(db)
+          for (const a of bad.slice(i, i + 450)) {
+            batch.set(docRef('assets', a.id), { assetType: resolve(a), updatedAt: Date.now() }, { merge: true })
+          }
+          await batch.commit()
+        }
+        return bad.length
       },
 
       // ── Computed ──────────────────────────────────────────────────────────

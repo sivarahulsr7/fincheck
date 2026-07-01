@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { useFinanceStore } from './store/useFinanceStore'
 import { useAuthStore } from './store/useAuthStore'
@@ -53,6 +53,20 @@ export default function App() {
   useEffect(() => {
     if (user) init()
   }, [user])
+
+  // One-time data hygiene once finance data has loaded: convert any legacy
+  // "Investment" expenses into assets, and give every asset a valid type so
+  // it shows in the allocation chart. Both are idempotent and safe to re-run.
+  const migratedOnce = useRef(false)
+  useEffect(() => {
+    if (loading || !user || migratedOnce.current) return
+    migratedOnce.current = true
+    const store = useFinanceStore.getState()
+    ;(async () => {
+      try { await store.convertInvestmentsToAssets() } catch { /* retried next launch */ }
+      try { await store.normalizeAssetTypes() } catch { /* retried next launch */ }
+    })()
+  }, [loading, user])
 
   // Track activity (keeps lastActive fresh, no inactivity locking)
   useEffect(() => {
