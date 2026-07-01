@@ -19,7 +19,16 @@ export default function TransactionForm({ type: initialType = 'expense', transac
   const [note, setNote] = useState(transaction?.note || transaction?.notes || '')
   const [liabilityId, setLiabilityId] = useState(transaction?.liabilityId || '')
   const [assetId, setAssetId] = useState(transaction?.assetId || '')
+  const [tags, setTags] = useState(transaction?.tags || [])
+  const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase()
+    if (t && !tags.includes(t)) setTags([...tags, t])
+    setTagInput('')
+  }
+  const removeTag = (t) => setTags(tags.filter((x) => x !== t))
 
   const cats = CATEGORIES.filter((c) => {
     if (type === 'transfer') return false
@@ -57,6 +66,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         // links to nothing specific (stored as null).
         liabilityId: type === 'expense' && categoryId === 'emi' && liabilityId && liabilityId !== 'other' ? liabilityId : null,
         assetId: type === 'expense' && categoryId === 'investment' && assetId && assetId !== 'other' ? assetId : null,
+        tags,
         date, note,
       }
       if (editing) await updateTransaction(transaction.id, data)
@@ -185,6 +195,28 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       <div>
         <label className={labelCls}>Date</label>
         <DatePicker value={date} onChange={setDate} max={todayISO()} />
+      </div>
+
+      {/* Tags (optional) */}
+      <div>
+        <label className={labelCls}>Tags (optional)</label>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {tags.map((t) => (
+              <button key={t} onClick={() => removeTag(t)}
+                className="text-[11px] px-2 py-0.5 rounded-full bg-green-tint text-green border border-green-dim">
+                #{t} ✕
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input type="text" placeholder="e.g. goa-trip, reimbursable" value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() } }}
+            className={inputCls} />
+          <button type="button" onClick={addTag} className="px-4 rounded-xl bg-card-2 text-green text-sm font-medium">Add</button>
+        </div>
       </div>
 
       {/* Note */}

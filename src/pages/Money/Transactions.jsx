@@ -44,6 +44,7 @@ export default function Transactions({ onAdd }) {
   const [dateTo, setDateTo] = useState('')
   const [amtMin, setAmtMin] = useState('')
   const [amtMax, setAmtMax] = useState('')
+  const [tagFilter, setTagFilter] = useState('')
   // Bulk edit (TXN-7)
   const [bulkEdit, setBulkEdit] = useState(false)
 
@@ -78,6 +79,7 @@ export default function Transactions({ onAdd }) {
         const amt = Number(t.amount)
         if (amtMin !== '' && amt < Number(amtMin)) return false
         if (amtMax !== '' && amt > Number(amtMax)) return false
+        if (tagFilter && !(t.tags || []).includes(tagFilter)) return false
         if (q) {
           const cat = CATEGORIES.find(c => c.id === t.categoryId)
           const acc = accounts.find(a => a.id === t.accountId)
@@ -97,9 +99,10 @@ export default function Transactions({ onAdd }) {
         const bTs = typeof b.createdAt === 'number' ? b.createdAt : (b.updatedAt || 0)
         return bTs - aTs
       })
-  }, [transactions, typeFilter, accountFilter, catFilter, monthFilter, search, thisMonthStart, dateFrom, dateTo, amtMin, amtMax])
+  }, [transactions, typeFilter, accountFilter, catFilter, monthFilter, search, thisMonthStart, dateFrom, dateTo, amtMin, amtMax, tagFilter])
 
-  const activeFilterCount = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (amtMin !== '' ? 1 : 0) + (amtMax !== '' ? 1 : 0)
+  const activeFilterCount = (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (amtMin !== '' ? 1 : 0) + (amtMax !== '' ? 1 : 0) + (tagFilter ? 1 : 0)
+  const allTags = useMemo(() => [...new Set(transactions.flatMap((t) => t.tags || []))].sort(), [transactions])
 
   // "Spending" excludes Investment (that's a contribution to an asset, not
   // consumption); investing is surfaced separately.
@@ -353,6 +356,9 @@ export default function Transactions({ onAdd }) {
                             <span className="text-[10px] text-gray-500">{acc?.name}</span>
                           </>
                         )}
+                        {(tx.tags || []).slice(0, 2).map((tg) => (
+                          <span key={tg} className="text-[10px] text-green">#{tg}</span>
+                        ))}
                       </div>
                     </div>
 
@@ -434,8 +440,21 @@ export default function Transactions({ onAdd }) {
                 className="bg-card-2 border border-card-border rounded-xl px-4 py-3 text-white text-sm outline-none" />
             </div>
           </div>
+          {allTags.length > 0 && (
+            <div>
+              <label className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1 block">Tag</label>
+              <div className="flex flex-wrap gap-1.5">
+                {allTags.map((t) => (
+                  <button key={t} onClick={() => setTagFilter(tagFilter === t ? '' : t)}
+                    className={`text-[11px] px-2.5 py-1 rounded-full border ${tagFilter === t ? 'bg-green text-[#1a3d29] border-green' : 'bg-card-2 text-gray-400 border-card-border'}`}>
+                    #{t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="flex gap-3">
-            <button onClick={() => { setDateFrom(''); setDateTo(''); setAmtMin(''); setAmtMax('') }}
+            <button onClick={() => { setDateFrom(''); setDateTo(''); setAmtMin(''); setAmtMax(''); setTagFilter('') }}
               className="flex-1 py-3 rounded-xl bg-card-2 text-gray-300 font-medium text-sm">Clear</button>
             <button onClick={() => setShowFilters(false)}
               className="flex-1 py-3 rounded-xl bg-green text-[#1a3d29] font-semibold text-sm">Apply</button>
