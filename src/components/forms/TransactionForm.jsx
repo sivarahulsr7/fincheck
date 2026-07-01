@@ -27,6 +27,14 @@ export default function TransactionForm({ type: initialType = 'expense', transac
   })
   const selectedCat = CATEGORIES.find((c) => c.id === categoryId)
 
+  // Links are category-driven: a loan only for "EMI & Loans", an asset only
+  // for "Investment". Selecting any other category clears them.
+  const selectCategory = (id) => {
+    setCategoryId(id)
+    if (id !== 'emi') setLiabilityId('')
+    if (id !== 'investment') setAssetId('')
+  }
+
   const valid = amount && Number(amount) > 0 &&
     (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
     date && date <= todayISO()
@@ -39,9 +47,10 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
         categoryId: type === 'transfer' ? null : categoryId,
         accountId, toAccountId: type === 'transfer' ? toAccountId : null,
-        // Links only apply to expenses (repayments / contributions are outflows).
-        liabilityId: type === 'expense' ? (liabilityId || null) : null,
-        assetId: type === 'expense' ? (assetId || null) : null,
+        // Links are category-driven: loan repayment for EMI, asset contribution
+        // for Investment (expenses only).
+        liabilityId: type === 'expense' && categoryId === 'emi' ? (liabilityId || null) : null,
+        assetId: type === 'expense' && categoryId === 'investment' ? (assetId || null) : null,
         date, note,
       }
       if (editing) await updateTransaction(transaction.id, data)
@@ -60,7 +69,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       {/* Type selector */}
       <div className="flex gap-1 p-1 bg-card-2 rounded-xl">
         {['expense', 'income', 'transfer'].map((t) => (
-          <button key={t} onClick={() => { setType(t); setCategoryId('') }}
+          <button key={t} onClick={() => { setType(t); setCategoryId(''); setLiabilityId(''); setAssetId('') }}
             className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${type === t ? 'bg-green text-[#1a3d29]' : 'text-gray-400'}`}>
             {t}
           </button>
@@ -84,7 +93,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
           <label className={labelCls}>Category</label>
           <div className="grid grid-cols-4 gap-2">
             {cats.map((cat) => (
-              <button key={cat.id} onClick={() => setCategoryId(cat.id)}
+              <button key={cat.id} onClick={() => selectCategory(cat.id)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${categoryId === cat.id ? 'border-green bg-green-tint' : 'border-card-border bg-card-2'}`}>
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: cat.bg }}>
                   <span style={{ color: cat.color }}><CategoryIcon icon={cat.icon} size={14} /></span>
@@ -124,41 +133,54 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         </div>
       )}
 
-      {/* Link to a liability (repayment) or asset (contribution) — expenses only.
-          Selecting one clears the other; the two are mutually exclusive. */}
-      {type === 'expense' && liabilities.length > 0 && !assetId && (
+      {/* Loan repayment — shown only for the "EMI & Loans" category. */}
+      {type === 'expense' && categoryId === 'emi' && (
         <div>
-          <label className={labelCls}>Loan repayment (optional)</label>
-          <select value={liabilityId} onChange={(e) => { setLiabilityId(e.target.value); if (e.target.value) setAssetId('') }}
-            className={`${inputCls} cursor-pointer`}>
-            <option value="">Not a repayment</option>
-            {liabilities.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-          </select>
-          {liabilityId && (
-            liabilities.find((l) => l.id === liabilityId)?.interestRate == null ? (
-              <p className="text-[11px] text-orange-400 mt-1">
-                ⚠ This loan has no interest rate — the full payment will reduce principal. Set a rate in Wealth → Liabilities for accurate tracking.
-              </p>
-            ) : (
-              <p className="text-[11px] text-gray-500 mt-1">
-                Reduces this loan's outstanding principal (interest is excluded automatically).
-              </p>
-            )
+          <label className={labelCls}>Loan (which one is this repaying?)</label>
+          {liabilities.length === 0 ? (
+            <p className="text-[11px] text-gray-500">No loans yet. Add one in Wealth → Liabilities to track repayments.</p>
+          ) : (
+            <>
+              <select value={liabilityId} onChange={(e) => setLiabilityId(e.target.value)}
+                className={`${inputCls} cursor-pointer`}>
+                <option value="">Don't link to a loan</option>
+                {liabilities.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+              {liabilityId && (
+                liabilities.find((l) => l.id === liabilityId)?.interestRate == null ? (
+                  <p className="text-[11px] text-orange-400 mt-1">
+                    ⚠ This loan has no interest rate — the full payment will reduce principal. Set a rate in Wealth → Liabilities for accurate tracking.
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Reduces this loan's outstanding principal (interest is excluded automatically).
+                  </p>
+                )
+              )}
+            </>
           )}
         </div>
       )}
-      {type === 'expense' && assets.length > 0 && !liabilityId && (
+
+      {/* Investment contribution — shown only for the "Investment" category. */}
+      {type === 'expense' && categoryId === 'investment' && (
         <div>
-          <label className={labelCls}>Investment contribution (optional)</label>
-          <select value={assetId} onChange={(e) => { setAssetId(e.target.value); if (e.target.value) setLiabilityId('') }}
-            className={`${inputCls} cursor-pointer`}>
-            <option value="">Not a contribution</option>
-            {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-          {assetId && (
-            <p className="text-[11px] text-gray-500 mt-1">
-              Adds this amount to the asset's invested value and current value.
-            </p>
+          <label className={labelCls}>Asset (which one is this contributing to?)</label>
+          {assets.length === 0 ? (
+            <p className="text-[11px] text-gray-500">No assets yet. Add one in Wealth → Assets to track contributions.</p>
+          ) : (
+            <>
+              <select value={assetId} onChange={(e) => setAssetId(e.target.value)}
+                className={`${inputCls} cursor-pointer`}>
+                <option value="">Don't link to an asset</option>
+                {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              {assetId && (
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Adds this amount to the asset's invested value and current value.
+                </p>
+              )}
+            </>
           )}
         </div>
       )}

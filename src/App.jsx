@@ -55,18 +55,13 @@ export default function App() {
     if (user) init()
   }, [user])
 
-  // One-time data hygiene once finance data has loaded: convert any legacy
-  // "Investment" expenses into assets, and give every asset a valid type so
-  // it shows in the allocation chart. Both are idempotent and safe to re-run.
+  // One-time data hygiene once finance data has loaded: give every asset a
+  // valid type so it shows in the allocation chart. Idempotent.
   const migratedOnce = useRef(false)
   useEffect(() => {
     if (loading || !user || migratedOnce.current) return
     migratedOnce.current = true
-    const store = useFinanceStore.getState()
-    ;(async () => {
-      try { await store.convertInvestmentsToAssets() } catch { /* retried next launch */ }
-      try { await store.normalizeAssetTypes() } catch { /* retried next launch */ }
-    })()
+    useFinanceStore.getState().normalizeAssetTypes().catch(() => { /* retried next launch */ })
   }, [loading, user])
 
   // Track activity (keeps lastActive fresh, no inactivity locking)

@@ -448,53 +448,6 @@ export const useFinanceStore = create(
         return deleteDoc(docRef('budgets', id))
       },
 
-      // ── Migration: Investment expenses → Assets ───────────────────────────
-      // Idempotent: each asset id is derived from its source transaction id,
-      // so a double-run overwrites the same asset docs instead of creating
-      // duplicates. Account balances are untouched — the account was correctly
-      // debited when the expense was recorded; the money is now an asset.
-      convertInvestmentsToAssets: async () => {
-        const { transactions } = get()
-        const inv = transactions.filter((t) => t.categoryId === 'investment' && t.type === 'expense')
-        if (inv.length === 0) return 0
-
-        const assetFor = (tx) => {
-          const amt = Number(tx.amount)
-          const value = Number.isFinite(amt) ? amt : 0
-          return {
-            id: `from-tx-${tx.id}`,
-            name: tx.description || 'Investment',
-            assetType: 'equity',
-            investedAmount: value,
-            currentValue: value,
-            units: null,
-            purchaseDate: tx.date,
-            notes: 'Converted from investment expense',
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          }
-        }
-
-        if (!FIREBASE_CONFIGURED) {
-          const newAssets = inv.map(assetFor)
-          const newIds = new Set(newAssets.map((a) => a.id))
-          set((s) => ({
-            assets: [...s.assets.filter((a) => !newIds.has(a.id)), ...newAssets],
-            transactions: s.transactions.filter((t) => !(t.categoryId === 'investment' && t.type === 'expense')),
-          }))
-          return inv.length
-        }
-
-        const batch = writeBatch(db)
-        inv.forEach((tx) => {
-          const asset = assetFor(tx)
-          batch.set(docRef('assets', asset.id), asset)
-          batch.delete(docRef('transactions', tx.id))
-        })
-        await batch.commit()
-        return inv.length
-      },
-
       // ── Migration: give every asset a valid assetType ─────────────────────
       // Assets whose assetType is missing or unrecognized don't appear grouped
       // in the Allocation chart. Recover from a legacy `type` field (the old
