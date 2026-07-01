@@ -1,5 +1,5 @@
-import { useState } from 'react'
 import { useAppStore } from '../../store/useAppStore'
+import AppHeader from '../../components/layout/AppHeader'
 import Assets from './Assets'
 import Liabilities from './Liabilities'
 import NetWorthHistory from './NetWorthHistory'
@@ -13,7 +13,8 @@ export default function Wealth() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex border-b border-card-border px-4 flex-shrink-0" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
+      <AppHeader title="Wealth" />
+      <div className="flex border-b border-card-border px-4 flex-shrink-0 pt-1">
         {SUB_TABS.map((tab) => {
           const key = tab.toLowerCase().replace(' ', '-')
           const isActive = active === key

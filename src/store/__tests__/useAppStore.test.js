@@ -161,6 +161,16 @@ describe('toggleBalances', () => {
   })
 })
 
+describe('toggleShowLiabilities', () => {
+  it('defaults to true and flips', () => {
+    useAppStore.setState({ showLiabilities: true })
+    useAppStore.getState().toggleShowLiabilities()
+    expect(useAppStore.getState().showLiabilities).toBe(false)
+    useAppStore.getState().toggleShowLiabilities()
+    expect(useAppStore.getState().showLiabilities).toBe(true)
+  })
+})
+
 describe('tab navigation', () => {
   it('setActiveTab updates active tab', () => {
     useAppStore.getState().setActiveTab('wealth')

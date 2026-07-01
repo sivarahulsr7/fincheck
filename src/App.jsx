@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAppStore } from './store/useAppStore'
 import { useFinanceStore } from './store/useFinanceStore'
 import { useAuthStore } from './store/useAuthStore'
@@ -18,7 +19,7 @@ import AssetForm from './components/forms/AssetForm'
 import LiabilityForm from './components/forms/LiabilityForm'
 
 export default function App() {
-  const { isLocked, pinSetupDone, activeTab, touchActivity } = useAppStore()
+  const { isLocked, pinSetupDone, activeTab, touchActivity, balancesHidden, toggleBalances } = useAppStore()
   const { init, loading } = useFinanceStore()
   const { user, authLoading, init: initAuth } = useAuthStore()
   const [innerPage, setInnerPage] = useState(null)
@@ -113,9 +114,14 @@ export default function App() {
   if (loading) return <Splash />
 
   const BackHeader = ({ onBack }) => (
-    <div className="flex items-center gap-3 px-4 pb-2 flex-shrink-0"
+    <div className="flex items-center justify-between gap-3 px-4 pb-2 flex-shrink-0"
          style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
       <button onClick={onBack} className="text-green text-sm font-medium">← Back</button>
+      <button onClick={toggleBalances}
+        aria-label={balancesHidden ? 'Show balances' : 'Hide balances'}
+        className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400">
+        {balancesHidden ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
     </div>
   )
 

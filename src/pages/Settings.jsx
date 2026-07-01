@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
-import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, Lock } from 'lucide-react'
+import { ChevronRight, Shield, Eye, EyeOff, Fingerprint, Info, Delete, Lock, Landmark } from 'lucide-react'
 import BottomSheet from '../components/common/BottomSheet'
 import {
   isBiometricAvailable, isBiometricRegistered, registerBiometric, clearBiometric
@@ -11,7 +11,7 @@ import { useAuthStore } from '../store/useAuthStore'
 const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 
 export default function Settings({ onBack }) {
-  const { pinSetupDone, setPin, verifyPin, balancesHidden, toggleBalances, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
+  const { pinSetupDone, setPin, verifyPin, balancesHidden, toggleBalances, showLiabilities, toggleShowLiabilities, lock, biometricEnabled, setBiometricEnabled } = useAppStore()
   const { user } = useAuthStore()
   const { migrateDataToPrivate, dataMigrated, destroy, init } = useFinanceStore()
 
@@ -126,6 +126,14 @@ export default function Settings({ onBack }) {
           toggle: true,
           value: balancesHidden,
           onToggle: toggleBalances,
+        },
+        {
+          icon: <Landmark size={16} className="text-blue-400" />,
+          label: 'Show Liabilities',
+          sublabel: showLiabilities ? 'Shown in the Overview net-worth section' : 'Hidden from the Overview net-worth section',
+          toggle: true,
+          value: showLiabilities,
+          onToggle: toggleShowLiabilities,
         },
       ]
     },

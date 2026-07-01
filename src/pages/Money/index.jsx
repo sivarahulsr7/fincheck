@@ -1,4 +1,5 @@
 import { useAppStore } from '../../store/useAppStore'
+import AppHeader from '../../components/layout/AppHeader'
 import Transactions from './Transactions'
 import Budget from './Budget'
 import Accounts from './Accounts'
@@ -17,8 +18,9 @@ export default function Money() {
 
   return (
     <div className="flex flex-col h-full">
+      <AppHeader title="Money" />
       {/* Sub-tab bar */}
-      <div className="flex border-b border-card-border px-4 flex-shrink-0" style={{ paddingTop: 'max(env(safe-area-inset-top), 12px)' }}>
+      <div className="flex border-b border-card-border px-4 flex-shrink-0 pt-1">
         {SUB_TABS.map((tab) => {
           const isActive = active === tab.toLowerCase()
           return (

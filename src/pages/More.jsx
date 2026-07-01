@@ -1,5 +1,6 @@
-import { Target, TrendingUp, BarChart2, Settings, Eye, EyeOff, Download } from 'lucide-react'
+import { Target, TrendingUp, BarChart2, Settings, Download } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
+import AppHeader from '../components/layout/AppHeader'
 
 const MENU_ITEMS = [
   { id: 'goals',    label: 'Goals',     icon: Target,    color: '#F97316' },
@@ -10,7 +11,7 @@ const MENU_ITEMS = [
 ]
 
 export default function More({ onNavigate }) {
-  const { balancesHidden, toggleBalances, setActiveTab, setMoneySubTab, setWealthSubTab } = useAppStore()
+  const { setActiveTab, setMoneySubTab, setWealthSubTab } = useAppStore()
 
   const handleItem = (id) => {
     if (id === 'goals') onNavigate?.('goals')
@@ -21,7 +22,9 @@ export default function More({ onNavigate }) {
   }
 
   return (
-    <div className="page-content px-4" style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
+    <div className="flex flex-col h-full">
+      <AppHeader title="More" />
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
       <div className="grid grid-cols-3 gap-3 mb-6">
         {MENU_ITEMS.map(({ id, label, icon: Icon, color }) => (
           <button key={id} onClick={() => handleItem(id)}
@@ -34,16 +37,6 @@ export default function More({ onNavigate }) {
         ))}
       </div>
 
-      <div className="bg-card rounded-2xl border border-card-border overflow-hidden mb-4">
-        <button onClick={toggleBalances} className="w-full flex items-center gap-3 px-4 py-4">
-          {balancesHidden
-            ? <EyeOff size={18} className="text-gray-400" />
-            : <Eye size={18} className="text-gray-400" />
-          }
-          <span className="text-sm text-gray-300">{balancesHidden ? 'Show totals' : 'Hide totals'}</span>
-        </button>
-      </div>
-
       <div className="bg-card rounded-2xl border border-card-border p-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-green flex items-center justify-center">
           <span className="text-[#1a3d29] font-bold text-sm">FC</span>
@@ -52,6 +45,7 @@ export default function More({ onNavigate }) {
           <p className="text-sm font-semibold text-white">Fin Check</p>
           <p className="text-xs text-gray-500">v1.0.0 · Personal Finance Manager</p>
         </div>
+      </div>
       </div>
     </div>
   )

@@ -16,6 +16,7 @@ export const useAppStore = create(
       biometricEnabled: false,
 
       balancesHidden: true,
+      showLiabilities: true, // show the liabilities figure in Overview's net-worth section
       activeTab: 'overview',
       moneySubTab: 'transactions',
       wealthSubTab: 'assets',
@@ -78,6 +79,7 @@ export const useAppStore = create(
 
       touchActivity: () => set({ lastActive: Date.now() }),
       toggleBalances: () => set((s) => ({ balancesHidden: !s.balancesHidden })),
+      toggleShowLiabilities: () => set((s) => ({ showLiabilities: !s.showLiabilities })),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setMoneySubTab: (tab) => set({ moneySubTab: tab }),
       setWealthSubTab: (tab) => set({ wealthSubTab: tab }),
@@ -90,6 +92,7 @@ export const useAppStore = create(
         pinSalt: s.pinSalt,
         pinSetupDone: s.pinSetupDone,
         balancesHidden: s.balancesHidden,
+        showLiabilities: s.showLiabilities,
         biometricEnabled: s.biometricEnabled,
       }),
     }

@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Bell, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-react'
+import { Bell, ChevronDown, ChevronUp, ArrowUpRight, ArrowDownLeft, AlertCircle } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
 import Amount from '../components/common/Amount'
+import AppHeader from '../components/layout/AppHeader'
 import { CATEGORIES } from '../utils/constants'
 import { fmtPct, nDaysAgo, startOfMonth } from '../utils/formatters'
 
@@ -25,8 +26,8 @@ function monthsForFilter(filter) {
 }
 
 export default function Overview({ onNavigate, onFabAction }) {
-  const { balancesHidden, toggleBalances, setActiveTab, setMoneySubTab, setWealthSubTab } = useAppStore()
-  const { transactions, accounts, assets, liabilities, goals, getNetWorth, loading } = useFinanceStore()
+  const { showLiabilities, setActiveTab, setMoneySubTab, setWealthSubTab } = useAppStore()
+  const { transactions, accounts, assets, liabilities, goals, getNetWorth } = useFinanceStore()
   const [cfFilter, setCfFilter] = useState('30d')
   const [mFilter, setMFilter] = useState('1M')
   const [cashflowOpen, setCashflowOpen] = useState(true)
@@ -74,35 +75,40 @@ export default function Overview({ onNavigate, onFabAction }) {
   // Total liabilities
   const totalLiab = liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)
 
+  // Total assets = investable assets (current value) + positive account balances
+  const liquidAssets = accounts.reduce((s, a) => s + (a.balance > 0 ? a.balance : 0), 0)
+  const assetsTotal = totalCurrent + liquidAssets
+
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
   const today = new Date().getDate()
 
   return (
-    <div className="page-content px-4" style={{ paddingTop: 'max(env(safe-area-inset-top), 16px)' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <p className="text-[10px] text-gray-500 font-semibold tracking-widest uppercase">Overview</p>
-          <p className="text-base font-bold text-white leading-tight mt-0.5">Fin Check</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={toggleBalances}
-            className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400">
-            {balancesHidden ? <EyeOff size={18} /> : <Eye size={18} />}
-          </button>
-          <button onClick={() => goMoney('transactions')}
-            className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 relative">
-            <Bell size={18} />
-          </button>
-        </div>
-      </div>
+    <div className="flex flex-col h-full">
+      <AppHeader title="Overview" actions={
+        <button onClick={() => goMoney('transactions')}
+          className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 relative">
+          <Bell size={18} />
+        </button>
+      } />
 
-      {/* Net Worth Card */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
+      {/* Net Worth Card — assets & liabilities (not a single net figure) */}
       <div
         onClick={() => goWealth('net-worth')}
         className={`rounded-2xl border p-4 mb-3 bg-card cursor-pointer active:opacity-80 ${netWorth < 0 ? 'border-red-dim' : 'border-card-border'}`}>
         <p className="text-[10px] text-gray-400 font-semibold tracking-widest uppercase mb-3">NET WORTH · ₹ INR</p>
-        <Amount value={netWorth} className="text-2xl font-bold text-white" />
+        <div className="flex gap-10">
+          <div>
+            <p className="text-[10px] text-gray-500 mb-0.5">ASSETS</p>
+            <Amount value={assetsTotal} className="text-2xl font-bold text-green" />
+          </div>
+          {showLiabilities && (
+            <div>
+              <p className="text-[10px] text-gray-500 mb-0.5">LIABILITIES</p>
+              <Amount value={totalLiab} className="text-2xl font-bold text-red" />
+            </div>
+          )}
+        </div>
         <p className="mt-3 text-green text-xs font-medium">View history →</p>
       </div>
 
@@ -320,6 +326,7 @@ export default function Overview({ onNavigate, onFabAction }) {
           <p className="text-gray-500 text-xs mt-2">No goals yet. Tap to create one.</p>
         )}
       </button>
+      </div>
     </div>
   )
 }
