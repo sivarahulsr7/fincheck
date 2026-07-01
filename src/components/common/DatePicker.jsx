@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 import BottomSheet from './BottomSheet'
+import { toISO, parseLocal } from '../../utils/formatters'
 
 const MONTHS = [
   'January','February','March','April','May','June',
@@ -8,23 +9,15 @@ const MONTHS = [
 ]
 const WEEKDAYS = ['Su','Mo','Tu','We','Th','Fr','Sa']
 
-function parseLocal(str) {
-  if (!str) return new Date()
-  const [y, m, d] = str.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
-function toISO(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function fmtDisplay(str) {
   if (!str) return 'Select date'
   const d = parseLocal(str)
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-export default function DatePicker({ value, onChange }) {
+// `max` (YYYY-MM-DD) optionally caps selectable dates — pass todayISO() to
+// forbid future dates.
+export default function DatePicker({ value, onChange, max }) {
   const [open, setOpen] = useState(false)
 
   const init = parseLocal(value)
@@ -46,8 +39,13 @@ export default function DatePicker({ value, onChange }) {
   ]
   while (cells.length % 7 !== 0) cells.push(null)
 
+  // Month is fully in the future (relative to max) → block forward nav
+  const viewAfterMax = max && `${view.year}-${String(view.month + 1).padStart(2, '0')}` > max.slice(0, 7)
+
   const handleSelect = (day) => {
-    onChange(toISO(new Date(view.year, view.month, day)))
+    const iso = toISO(new Date(view.year, view.month, day))
+    if (max && iso > max) return
+    onChange(iso)
     setOpen(false)
   }
 
@@ -71,8 +69,8 @@ export default function DatePicker({ value, onChange }) {
           <span className="text-white font-semibold text-sm">
             {MONTHS[view.month]} {view.year}
           </span>
-          <button onPointerDown={nextMonth}
-            className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 active:text-white">
+          <button onPointerDown={viewAfterMax ? undefined : nextMonth} disabled={viewAfterMax}
+            className={`w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center active:text-white ${viewAfterMax ? 'text-gray-700' : 'text-gray-400'}`}>
             <ChevronRight size={18} />
           </button>
         </div>
@@ -91,14 +89,17 @@ export default function DatePicker({ value, onChange }) {
             const iso = toISO(new Date(view.year, view.month, day))
             const isSelected = iso === value
             const isToday = iso === todayISO
+            const disabled = max && iso > max
             return (
-              <button key={i} onPointerDown={() => handleSelect(day)}
+              <button key={i} onPointerDown={disabled ? undefined : () => handleSelect(day)} disabled={disabled}
                 className={`h-9 w-full rounded-xl text-sm font-medium transition-all
-                  ${isSelected
-                    ? 'bg-green text-[#1a3d29] font-bold'
-                    : isToday
-                      ? 'border border-green/60 text-green'
-                      : 'text-white active:bg-card-2'
+                  ${disabled
+                    ? 'text-gray-700'
+                    : isSelected
+                      ? 'bg-green text-[#1a3d29] font-bold'
+                      : isToday
+                        ? 'border border-green/60 text-green'
+                        : 'text-white active:bg-card-2'
                   }`}>
                 {day}
               </button>

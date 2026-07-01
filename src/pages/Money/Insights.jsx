@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
-import { monthKey } from '../../utils/formatters'
+import { monthKey, startOfMonth } from '../../utils/formatters'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
@@ -26,8 +26,7 @@ export default function Insights() {
   }, [transactions])
 
   const catData = useMemo(() => {
-    const thisMonthStart = new Date(); thisMonthStart.setDate(1)
-    const tmStr = thisMonthStart.toISOString().split('T')[0]
+    const tmStr = startOfMonth(0)
     const monthExp = transactions.filter((t) => t.type === 'expense' && t.date >= tmStr)
     const total = monthExp.reduce((s, t) => s + Number(t.amount), 0)
     return CATEGORIES.filter((c) => c.type === 'expense').map((cat) => {

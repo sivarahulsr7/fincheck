@@ -3,7 +3,7 @@ import { Plus, Edit2, Trash2, Check, ChevronLeft, ChevronRight } from 'lucide-re
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
-import { monthKey } from '../../utils/formatters'
+import { monthKey, toISO } from '../../utils/formatters'
 import BottomSheet from '../../components/common/BottomSheet'
 import CategoryIcon from '../../components/common/CategoryIcon'
 
@@ -17,35 +17,47 @@ export default function Budget() {
   const [saving, setSaving] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
+  // Pin day 1 in every month calc so setMonth never overflows (e.g. May 31
+  // − 1 month → Apr 30, not May 1), keeping header and spend range in sync.
   const currentMk = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset)
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset, 1)
     return monthKey(d)
   }, [monthOffset])
 
   const monthLabel = useMemo(() => {
-    const d = new Date(); d.setMonth(d.getMonth() + monthOffset)
+    const d = new Date(); d.setMonth(d.getMonth() + monthOffset, 1)
     return d.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
   }, [monthOffset])
 
   const monthStart = useMemo(() => {
     const d = new Date(); d.setMonth(d.getMonth() + monthOffset, 1)
-    return d.toISOString().split('T')[0]
+    return toISO(d)
   }, [monthOffset])
 
   const monthEnd = useMemo(() => {
     const d = new Date(); d.setMonth(d.getMonth() + monthOffset + 1, 0)
-    return d.toISOString().split('T')[0]
+    return toISO(d)
   }, [monthOffset])
 
   const monthBudgets = budgets.filter((b) => b.monthKey === currentMk)
   const expCats = CATEGORIES.filter((c) => c.type === 'expense')
 
-  const getSpent = (cId) =>
-    transactions.filter((t) => t.type === 'expense' && t.categoryId === cId && t.date >= monthStart && t.date <= monthEnd)
-      .reduce((s, t) => s + Number(t.amount), 0)
+  // Single pass over transactions → spent per category for the active month.
+  const spentByCategory = useMemo(() => {
+    const map = {}
+    for (const t of transactions) {
+      if (t.type !== 'expense' || t.date < monthStart || t.date > monthEnd) continue
+      const amt = Number(t.amount)
+      if (!Number.isFinite(amt)) continue
+      map[t.categoryId] = (map[t.categoryId] || 0) + amt
+    }
+    return map
+  }, [transactions, monthStart, monthEnd])
+
+  const getSpent = (cId) => spentByCategory[cId] || 0
 
   const handleSave = async () => {
-    if (!catId || !limit || saving) return
+    if (!catId || !(Number(limit) > 0) || saving) return
     setSaving(true)
     const existing = editBudget || monthBudgets.find((b) => b.categoryId === catId)
     await setBudget({ id: existing?.id, categoryId: catId, monthKey: currentMk, limit: Number(limit) })
@@ -129,7 +141,7 @@ export default function Budget() {
           if (!cat) return null
           const spent = getSpent(b.categoryId)
           const pct = b.limit > 0 ? Math.min((spent / b.limit) * 100, 100) : 0
-          const over = spent > b.limit
+          const over = b.limit > 0 && spent > b.limit
           return (
             <div key={b.id} className="bg-card rounded-xl p-3 border border-card-border">
               <div className="flex items-center gap-2 mb-2">
@@ -190,8 +202,8 @@ export default function Budget() {
                 onChange={(e) => setLimit(e.target.value)} className={`${inputCls} pl-8`} />
             </div>
           </div>
-          <button onClick={handleSave} disabled={!catId || !limit || saving}
-            className={`w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${catId && limit ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
+          <button onClick={handleSave} disabled={!catId || !(Number(limit) > 0) || saving}
+            className={`w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${catId && Number(limit) > 0 ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
             {saving ? 'Saving...' : <><Check size={16} /> Save Budget</>}
           </button>
         </div>

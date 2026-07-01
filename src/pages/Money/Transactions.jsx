@@ -4,7 +4,7 @@ import { useFinanceStore } from '../../store/useFinanceStore'
 import { useAppStore } from '../../store/useAppStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
-import { fmt, fmtDate, monthKey, daysAgo, todayISO } from '../../utils/formatters'
+import { monthKey, daysAgo, todayISO } from '../../utils/formatters'
 import CategoryIcon from '../../components/common/CategoryIcon'
 import BottomSheet from '../../components/common/BottomSheet'
 import TransactionForm from '../../components/forms/TransactionForm'
@@ -114,14 +114,18 @@ export default function Transactions({ onAdd }) {
   }
 
   const handleExport = () => {
+    // Quote every field and double internal quotes so commas/quotes in names
+    // (e.g. an account called "HDFC, Savings") never break columns.
+    const csvEscape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
     const headers = ['Date', 'Type', 'Description', 'Category', 'Account', 'Amount']
     const rows = filtered.map(t => {
       const cat = CATEGORIES.find(c => c.id === t.categoryId)
       const acc = accounts.find(a => a.id === t.accountId)
-      return [t.date, t.type, `"${(t.description || '').replace(/"/g, '""')}"`, cat?.name || '', acc?.name || '', t.amount]
+      return [t.date, t.type, t.description || '', cat?.name || '', acc?.name || '', t.amount].map(csvEscape)
     })
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
+    // Prepend BOM so Excel reads UTF-8 (₹) correctly.
+    const csv = '﻿' + [headers.map(csvEscape), ...rows].map(r => r.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a'); a.href = url; a.download = 'transactions.csv'; a.click()
     URL.revokeObjectURL(url)

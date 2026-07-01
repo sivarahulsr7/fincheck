@@ -44,18 +44,20 @@ export const ASSET_TYPES = [
   { id: 'other',     name: 'Other Asset',     color: '#6B7280' },
 ]
 
+export const LIABILITY_TYPES = [
+  { id: 'homeloan',     name: 'Home Loan' },
+  { id: 'carloan',      name: 'Car Loan' },
+  { id: 'personalloan', name: 'Personal Loan' },
+  { id: 'creditcard',   name: 'Credit Card' },
+  { id: 'education',    name: 'Education' },
+  { id: 'other',        name: 'Other' },
+]
+
 export const GOAL_TYPES = [
   { id: 'savings',  name: 'Savings Goal',     icon: 'piggy-bank',  color: '#4CAF76' },
   { id: 'budget',   name: 'Budget Limit',     icon: 'shield',      color: '#3B82F6' },
   { id: 'debt',     name: 'Debt Payoff',      icon: 'landmark',    color: '#E05252' },
   { id: 'income',   name: 'Income Target',    icon: 'trending-up', color: '#F97316' },
-]
-
-export const RECURRING_FREQ = [
-  { id: 'daily',    name: 'Daily' },
-  { id: 'weekly',   name: 'Weekly' },
-  { id: 'monthly',  name: 'Monthly' },
-  { id: 'yearly',   name: 'Yearly' },
 ]
 
 export const INACTIVITY_TIMEOUT = 5 * 60 * 1000 // 5 minutes

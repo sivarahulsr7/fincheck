@@ -2,16 +2,8 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { todayISO } from '../../utils/formatters'
+import { LIABILITY_TYPES as TYPES } from '../../utils/constants'
 import DatePicker from '../common/DatePicker'
-
-const TYPES = [
-  { id: 'homeloan',    name: 'Home Loan' },
-  { id: 'carloan',     name: 'Car Loan' },
-  { id: 'personalloan',name: 'Personal Loan' },
-  { id: 'creditcard',  name: 'Credit Card' },
-  { id: 'education',   name: 'Education' },
-  { id: 'other',       name: 'Other' },
-]
 
 export default function LiabilityForm({ liability, onClose }) {
   const { addLiability, updateLiability } = useFinanceStore()
@@ -37,7 +29,7 @@ export default function LiabilityForm({ liability, onClose }) {
         originalAmount: originalAmount ? Number(originalAmount) : null,
         interestRate: interestRate ? Number(interestRate) : null,
         emi: emi ? Number(emi) : null,
-        startDate, endDate,
+        startDate, endDate: endDate || null,
       }
       if (liability?.id) await updateLiability(liability.id, data)
       else await addLiability(data)
@@ -107,7 +99,7 @@ export default function LiabilityForm({ liability, onClose }) {
       </div>
       <div>
         <label className={labelCls}>End Date (optional)</label>
-        <DatePicker value={endDate || todayISO()} onChange={setEndDate} />
+        <DatePicker value={endDate} onChange={setEndDate} />
       </div>
       <button onClick={handleSave} disabled={!valid || saving}
         className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${valid ? 'bg-red text-white' : 'bg-card-2 text-gray-600'}`}>

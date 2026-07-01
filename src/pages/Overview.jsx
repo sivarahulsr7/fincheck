@@ -4,7 +4,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
 import Amount from '../components/common/Amount'
 import { CATEGORIES } from '../utils/constants'
-import { fmtPct, nDaysAgo } from '../utils/formatters'
+import { fmtPct, nDaysAgo, startOfMonth } from '../utils/formatters'
 
 const TIME_FILTERS = [
   { id: '7d',  label: '7D',  days: 7 },
@@ -47,16 +47,14 @@ export default function Overview({ onNavigate, onFabAction }) {
 
   // Monthly cashflow section
   const months = monthsForFilter(mFilter)
-  const mStart = (() => {
-    const d = new Date(); d.setMonth(d.getMonth() - months + 1, 1); return d.toISOString().split('T')[0]
-  })()
+  const mStart = startOfMonth(-(months - 1))
   const mTxs = transactions.filter((t) => t.date >= mStart)
   const mIncome  = mTxs.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
   const mExpense = mTxs.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
   const mOverspent = mExpense > mIncome
 
   // Where it went (category breakdown for current period)
-  const thisMonthStart = new Date(); thisMonthStart.setDate(1); const tmStr = thisMonthStart.toISOString().split('T')[0]
+  const tmStr = startOfMonth(0)
   const monthExpenses = transactions.filter((t) => t.type === 'expense' && t.date >= tmStr)
   const totalExp = monthExpenses.reduce((s, t) => s + Number(t.amount), 0)
   const catBreakdown = CATEGORIES.filter((c) => c.type === 'expense').map((cat) => {
@@ -143,7 +141,6 @@ export default function Overview({ onNavigate, onFabAction }) {
           </button>
           <div className="flex items-center gap-2">
             <Amount value={netWorth} className="text-sm text-gray-300" />
-            {totalLiab > 0 && <span className="text-xs text-red">-{fmtPct(totalLiab > 0 ? -2.5 : 0)}</span>}
             <button onClick={() => goWealth('assets')} className="text-green text-xs font-medium ml-1">→</button>
           </div>
         </div>
@@ -191,7 +188,9 @@ export default function Overview({ onNavigate, onFabAction }) {
 
             {mExpense > mIncome && mExpense > 0 && (
               <button onClick={() => goMoney('transactions')} className="text-red text-xs mb-3 text-left w-full">
-                Spent {Math.round((mExpense / Math.max(mIncome, 1)) * 100)}% · day {today}/{daysInMonth} →
+                {mIncome > 0
+                  ? `Spent ${Math.round((mExpense / mIncome) * 100)}% of income · day ${today}/${daysInMonth} →`
+                  : `No income this period · day ${today}/${daysInMonth} →`}
               </button>
             )}
 

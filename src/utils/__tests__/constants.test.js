@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   CATEGORIES, ACCOUNT_TYPES, DEFAULT_ACCOUNTS,
-  ASSET_TYPES, GOAL_TYPES, RECURRING_FREQ,
+  ASSET_TYPES, GOAL_TYPES, LIABILITY_TYPES,
   PIN_RESET_ATTEMPTS,
 } from '../constants'
 
@@ -115,13 +115,18 @@ describe('GOAL_TYPES', () => {
   })
 })
 
-describe('RECURRING_FREQ', () => {
-  it('includes daily, weekly, monthly, yearly', () => {
-    const ids = RECURRING_FREQ.map((f) => f.id)
-    expect(ids).toContain('daily')
-    expect(ids).toContain('weekly')
-    expect(ids).toContain('monthly')
-    expect(ids).toContain('yearly')
+describe('LIABILITY_TYPES', () => {
+  it('every type has id and name', () => {
+    LIABILITY_TYPES.forEach((t) => {
+      expect(t).toHaveProperty('id')
+      expect(t).toHaveProperty('name')
+    })
+  })
+  it('includes the common liability kinds', () => {
+    const ids = LIABILITY_TYPES.map((t) => t.id)
+    expect(ids).toContain('homeloan')
+    expect(ids).toContain('creditcard')
+    expect(ids).toContain('other')
   })
 })
 

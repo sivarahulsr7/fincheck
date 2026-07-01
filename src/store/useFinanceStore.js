@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db, FIREBASE_CONFIGURED } from '../firebase'
 import { DEFAULT_ACCOUNTS, CATEGORIES } from '../utils/constants'
-import { todayISO, monthKey } from '../utils/formatters'
+import { todayISO } from '../utils/formatters'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const colRef = (name) => collection(db, name)

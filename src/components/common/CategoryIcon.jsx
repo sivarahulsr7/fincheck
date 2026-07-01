@@ -1,7 +1,8 @@
 import {
   Tag, CreditCard, PieChart, Home, Car, Utensils, Heart,
   ShoppingBag, Tv, Book, MoreHorizontal, Briefcase, Code2,
-  Building2, TrendingUp, Gift, Plus, Wallet, Landmark, Smartphone
+  Building2, TrendingUp, Gift, Plus, Wallet, Landmark, Smartphone,
+  PiggyBank, Shield
 } from 'lucide-react'
 
 const ICON_MAP = {
@@ -11,7 +12,7 @@ const ICON_MAP = {
   'more-horizontal': MoreHorizontal, 'briefcase': Briefcase,
   'code': Code2, 'building-2': Building2, 'trending-up': TrendingUp,
   'gift': Gift, 'plus': Plus, 'wallet': Wallet, 'landmark': Landmark,
-  'smartphone': Smartphone,
+  'smartphone': Smartphone, 'piggy-bank': PiggyBank, 'shield': Shield,
 }
 
 export default function CategoryIcon({ icon, size = 16 }) {

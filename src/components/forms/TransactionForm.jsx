@@ -27,7 +27,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
 
   const valid = amount && Number(amount) > 0 &&
     (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
-    date
+    date && date <= todayISO()
 
   const handleSave = async () => {
     if (!valid || saving) return
@@ -122,7 +122,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       {/* Date */}
       <div>
         <label className={labelCls}>Date</label>
-        <DatePicker value={date} onChange={setDate} />
+        <DatePicker value={date} onChange={setDate} max={todayISO()} />
       </div>
 
       {/* Note */}

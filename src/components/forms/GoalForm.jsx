@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import { GOAL_TYPES } from '../../utils/constants'
-import { todayISO } from '../../utils/formatters'
+import DatePicker from '../common/DatePicker'
 
 export default function GoalForm({ goal, onClose }) {
   const { addGoal, updateGoal } = useFinanceStore()
@@ -62,7 +62,7 @@ export default function GoalForm({ goal, onClose }) {
 
       <div>
         <label className={labelCls}>Target Date (optional)</label>
-        <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} className={inputCls} />
+        <DatePicker value={targetDate} onChange={setTargetDate} />
       </div>
 
       <div>

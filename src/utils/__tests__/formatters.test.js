@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest'
 import {
   fmt, fmtCompact, fmtDate, fmtMonth, fmtPct,
   todayISO, monthKey, startOfMonth, endOfMonth, daysAgo, nDaysAgo,
+  toISO, parseLocal,
 } from '../formatters'
+
+// Local YYYY-MM-DD for a given date — the expected behavior everywhere.
+const localISO = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 describe('fmt', () => {
   it('formats zero', () => expect(fmt(0)).toBe('₹0'))
@@ -25,9 +30,14 @@ describe('fmt', () => {
 })
 
 describe('fmtCompact', () => {
-  it('formats values >= 10L as L', () => {
+  it('formats lakhs (1L = 1,00,000)', () => {
+    expect(fmtCompact(100000)).toBe('₹1.0L')
     expect(fmtCompact(1000000)).toBe('₹10.0L')
     expect(fmtCompact(2500000)).toBe('₹25.0L')
+  })
+  it('formats crores (1Cr = 1,00,00,000)', () => {
+    expect(fmtCompact(10000000)).toBe('₹1.0Cr')
+    expect(fmtCompact(25000000)).toBe('₹2.5Cr')
   })
   it('formats values >= 1K as K', () => {
     expect(fmtCompact(5000)).toBe('₹5.0K')
@@ -38,6 +48,10 @@ describe('fmtCompact', () => {
     expect(result).toContain('₹')
     expect(result).not.toContain('K')
     expect(result).not.toContain('L')
+  })
+  it('preserves the sign of negative compact values', () => {
+    expect(fmtCompact(-5000)).toBe('-₹5.0K')
+    expect(fmtCompact(-2500000)).toBe('-₹25.0L')
   })
 })
 
@@ -68,20 +82,37 @@ describe('fmtPct', () => {
   it('prefixes positive values with +', () => expect(fmtPct(5.5)).toBe('+5.5%'))
   it('prefixes zero with +', () => expect(fmtPct(0)).toBe('+0.0%'))
   it('keeps negative sign', () => expect(fmtPct(-3.2)).toBe('-3.2%'))
-  it('returns empty string for null/undefined', () => {
-    expect(fmtPct(null)).toBe('')
-    expect(fmtPct(undefined)).toBe('')
+  it('returns 0.0% for non-finite input', () => {
+    expect(fmtPct(null)).toBe('0.0%')
+    expect(fmtPct(undefined)).toBe('0.0%')
+    expect(fmtPct(NaN)).toBe('0.0%')
+    expect(fmtPct(Infinity)).toBe('0.0%')
   })
   it('rounds to 1 decimal place', () => expect(fmtPct(5.678)).toBe('+5.7%'))
+})
+
+describe('toISO / parseLocal', () => {
+  it('toISO formats a date with local fields', () => {
+    expect(toISO(new Date(2024, 0, 5))).toBe('2024-01-05')
+    expect(toISO(new Date(2024, 11, 31))).toBe('2024-12-31')
+  })
+  it('parseLocal round-trips with toISO', () => {
+    expect(toISO(parseLocal('2024-06-20'))).toBe('2024-06-20')
+  })
+  it('parseLocal reads the intended calendar day (not UTC-shifted)', () => {
+    const d = parseLocal('2024-06-20')
+    expect(d.getFullYear()).toBe(2024)
+    expect(d.getMonth()).toBe(5)
+    expect(d.getDate()).toBe(20)
+  })
 })
 
 describe('todayISO', () => {
   it('returns a YYYY-MM-DD string', () => {
     expect(todayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
-  it('matches today\'s date', () => {
-    const today = new Date().toISOString().split('T')[0]
-    expect(todayISO()).toBe(today)
+  it('matches today\'s LOCAL date', () => {
+    expect(todayISO()).toBe(localISO(new Date()))
   })
 })
 

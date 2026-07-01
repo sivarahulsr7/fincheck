@@ -3,8 +3,11 @@ import { Plus, Edit2, Trash2 } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { fmtDate } from '../../utils/formatters'
+import { LIABILITY_TYPES } from '../../utils/constants'
 import BottomSheet from '../../components/common/BottomSheet'
 import LiabilityForm from '../../components/forms/LiabilityForm'
+
+const liabTypeName = (id) => LIABILITY_TYPES.find((t) => t.id === id)?.name || 'Loan'
 
 export default function Liabilities() {
   const { liabilities, deleteLiability } = useFinanceStore()
@@ -42,20 +45,22 @@ export default function Liabilities() {
       {liabilities.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-500 text-sm">No liabilities. Debt-free!</p>
-          <button onClick={() => setShowForm(true)} className="text-red text-xs mt-2">Add a liability →</button>
+          <button onClick={() => { setEditLiab(null); setShowForm(true) }} className="text-red text-xs mt-2">Add a liability →</button>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
           {liabilities.map((l) => {
-            const progress = l.outstandingAmount > 0 && l.originalAmount
-              ? Math.max(0, 100 - (l.outstandingAmount / l.originalAmount) * 100)
-              : 0
+            // Progress only meaningful when we know the original amount.
+            const hasOriginal = l.originalAmount > 0
+            const progress = hasOriginal
+              ? Math.min(100, Math.max(0, 100 - (l.outstandingAmount / l.originalAmount) * 100))
+              : null
             return (
               <div key={l.id} className="bg-card rounded-xl border border-card-border p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="text-sm font-semibold text-white">{l.name}</p>
-                    <p className="text-xs text-gray-500 capitalize">{l.liabType?.replace('loan', ' Loan') || 'Loan'}</p>
+                    <p className="text-xs text-gray-500">{liabTypeName(l.liabType)}</p>
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => { setEditLiab(l); setShowForm(true) }} className="text-gray-500"><Edit2 size={13} /></button>
@@ -72,7 +77,7 @@ export default function Liabilities() {
                     {l.endDate && <span>· Ends {fmtDate(l.endDate)}</span>}
                   </div>
                 )}
-                {progress > 0 && (
+                {progress !== null && (
                   <div>
                     <div className="flex justify-between text-[10px] text-gray-500 mb-1">
                       <span>Paid off</span><span>{progress.toFixed(0)}%</span>

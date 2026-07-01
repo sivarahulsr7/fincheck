@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { useFinanceStore } from '../../store/useFinanceStore'
+import { useAppStore } from '../../store/useAppStore'
 import Amount from '../../components/common/Amount'
+import { fmt } from '../../utils/formatters'
 import { ASSET_TYPES } from '../../utils/constants'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 
@@ -14,6 +16,7 @@ const KNOWN_TYPES = new Set(ASSET_TYPES.map((t) => t.id))
 
 export default function Allocation() {
   const { assets, accounts } = useFinanceStore()
+  const balancesHidden = useAppStore((s) => s.balancesHidden)
 
   const byType = useMemo(() => {
     // 1. Group named asset types
@@ -51,7 +54,7 @@ export default function Allocation() {
     return (
       <div className="bg-card-2 border border-card-border rounded-xl p-2 text-xs">
         <p style={{ color: d.payload.color }}>{d.name}</p>
-        <p className="text-white">₹{d.value?.toLocaleString('en-IN')}</p>
+        <p className="text-white">{balancesHidden ? '••••••' : fmt(d.value || 0)}</p>
         <p className="text-gray-400">{total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%</p>
       </div>
     )
@@ -87,7 +90,7 @@ export default function Allocation() {
               ))}
             </div>
 
-            <p className="text-xs text-gray-400 mb-2">TOTAL: <span className="text-white font-bold">₹{total.toLocaleString('en-IN')}</span></p>
+            <p className="text-xs text-gray-400 mb-2">TOTAL: <span className="text-white font-bold">{balancesHidden ? '••••••' : fmt(total)}</span></p>
 
             <div className="flex flex-col gap-2">
               {byType.map((t) => (

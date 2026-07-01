@@ -11,8 +11,15 @@ export default function BottomSheet({ open, onClose, title, children }) {
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  // Swipe down to close
-  const onTouchStart = (e) => { dragStart.current = e.touches[0].clientY }
+  // Swipe down to close — but only when the gesture starts at the top of the
+  // sheet (not mid-scroll in a long form) and not on a form control, so a
+  // normal scroll or field drag never dismisses the sheet.
+  const onTouchStart = (e) => {
+    const onControl = e.target.closest('input, textarea, select, button')
+    const body = e.target.closest('.bottom-sheet-body')
+    const bodyScrolled = body && body.scrollTop > 0
+    dragStart.current = (onControl || bodyScrolled) ? null : e.touches[0].clientY
+  }
   const onTouchEnd = (e) => {
     if (dragStart.current == null) return
     const delta = e.changedTouches[0].clientY - dragStart.current
@@ -41,6 +48,7 @@ export default function BottomSheet({ open, onClose, title, children }) {
           <h3 className="text-base font-semibold text-white">{title || ''}</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="w-8 h-8 rounded-full bg-card-2 flex items-center justify-center text-gray-400 active:text-white">
             <X size={18} />
           </button>
