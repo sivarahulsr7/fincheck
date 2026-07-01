@@ -76,6 +76,9 @@ export default function Overview({ onNavigate, onFabAction }) {
   const totalInvested = assets.reduce((s, a) => s + (a.investedAmount || 0), 0)
   const totalCurrent  = assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)
   const investPct = totalInvested > 0 ? ((totalCurrent - totalInvested) / totalInvested) * 100 : 0
+  const investedThisMonth = transactions
+    .filter((t) => isInvestmentExpense(t) && t.date >= startOfMonth(0))
+    .reduce((s, t) => s + Number(t.amount), 0)
 
   // Total liabilities
   const totalLiab = liabilities.reduce((s, l) => s + (l.outstandingAmount || 0), 0)
@@ -323,6 +326,12 @@ export default function Overview({ onNavigate, onFabAction }) {
                   <Amount value={totalCurrent} className="text-sm font-bold text-white" />
                 </button>
               </div>
+              {investedThisMonth > 0 && (
+                <div className="flex items-center justify-between mt-3 px-1">
+                  <span className="text-xs text-gray-400">Invested this month</span>
+                  <Amount value={investedThisMonth} className="text-sm font-semibold text-green" />
+                </div>
+              )}
             </div>
           )}
         </div>
