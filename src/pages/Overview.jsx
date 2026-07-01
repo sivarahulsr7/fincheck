@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useFinanceStore } from '../store/useFinanceStore'
 import Amount from '../components/common/Amount'
 import AppHeader from '../components/layout/AppHeader'
+import BottomSheet from '../components/common/BottomSheet'
 import { CATEGORIES } from '../utils/constants'
 import { fmtPct, nDaysAgo, startOfMonth } from '../utils/formatters'
 
@@ -33,6 +34,7 @@ export default function Overview({ onNavigate, onFabAction }) {
   const [cashflowOpen, setCashflowOpen] = useState(true)
   const [wealthOpen, setWealthOpen] = useState(false)
   const [investOpen, setInvestOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
 
   const goWealth = (sub) => { setActiveTab('wealth'); setWealthSubTab(sub) }
   const goMoney  = (sub) => { setActiveTab('money');  setMoneySubTab(sub) }
@@ -82,12 +84,19 @@ export default function Overview({ onNavigate, onFabAction }) {
   const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate()
   const today = new Date().getDate()
 
+  // Loans missing an interest rate — repayments to these over-reduce principal.
+  const loansNeedingInterest = liabilities.filter((l) => l.interestRate == null)
+
   return (
     <div className="flex flex-col h-full">
       <AppHeader title="Overview" actions={
-        <button onClick={() => goMoney('transactions')}
+        <button onClick={() => setNotifOpen(true)}
+          aria-label="Notifications"
           className="w-9 h-9 rounded-xl bg-card-2 flex items-center justify-center text-gray-400 relative">
           <Bell size={18} />
+          {loansNeedingInterest.length > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red" />
+          )}
         </button>
       } />
 
@@ -327,6 +336,31 @@ export default function Overview({ onNavigate, onFabAction }) {
         )}
       </button>
       </div>
+
+      {/* Notifications */}
+      <BottomSheet open={notifOpen} onClose={() => setNotifOpen(false)} title="Notifications">
+        {loansNeedingInterest.length === 0 ? (
+          <p className="text-gray-400 text-sm py-4 text-center">You're all caught up.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-gray-500 mb-1">
+              These loans have no interest rate set. Repayments will reduce the full amount from principal
+              (over-reducing it). Set a rate so only the principal portion is deducted.
+            </p>
+            {loansNeedingInterest.map((l) => (
+              <button key={l.id}
+                onClick={() => { setNotifOpen(false); goWealth('liabilities') }}
+                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card-2 text-left">
+                <AlertCircle size={16} className="text-orange-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white truncate">{l.name}</p>
+                  <p className="text-xs text-gray-500">Tap to set interest rate →</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </BottomSheet>
     </div>
   )
 }

@@ -135,9 +135,15 @@ export default function TransactionForm({ type: initialType = 'expense', transac
             {liabilities.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
           {liabilityId && (
-            <p className="text-[11px] text-gray-500 mt-1">
-              Reduces this loan's outstanding principal (interest is excluded automatically).
-            </p>
+            liabilities.find((l) => l.id === liabilityId)?.interestRate == null ? (
+              <p className="text-[11px] text-orange-400 mt-1">
+                ⚠ This loan has no interest rate — the full payment will reduce principal. Set a rate in Wealth → Liabilities for accurate tracking.
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-500 mt-1">
+                Reduces this loan's outstanding principal (interest is excluded automatically).
+              </p>
+            )
           )}
         </div>
       )}
