@@ -5,6 +5,7 @@ import { useAppStore } from '../../store/useAppStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
 import { monthKey, daysAgo, todayISO, startOfMonth } from '../../utils/formatters'
+import { isSpendingExpense, isInvestmentExpense } from '../../utils/txClassify'
 import CategoryIcon from '../../components/common/CategoryIcon'
 import BottomSheet from '../../components/common/BottomSheet'
 import TransactionForm from '../../components/forms/TransactionForm'
@@ -72,11 +73,14 @@ export default function Transactions({ onAdd }) {
       })
   }, [transactions, typeFilter, accountFilter, catFilter, monthFilter, search, thisMonthStart])
 
-  const totalExpense = useMemo(() => filtered.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0), [filtered])
-  const totalIncome  = useMemo(() => filtered.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0), [filtered])
+  // "Spending" excludes Investment (that's a contribution to an asset, not
+  // consumption); investing is surfaced separately.
+  const totalExpense  = useMemo(() => filtered.filter(isSpendingExpense).reduce((s, t) => s + Number(t.amount), 0), [filtered])
+  const totalInvested = useMemo(() => filtered.filter(isInvestmentExpense).reduce((s, t) => s + Number(t.amount), 0), [filtered])
+  const totalIncome   = useMemo(() => filtered.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0), [filtered])
 
   const monthlyAvg = useMemo(() => {
-    const exp = transactions.filter((t) => t.type === 'expense')
+    const exp = transactions.filter(isSpendingExpense)
     const months = new Set(exp.map((t) => monthKey(t.date))).size || 1
     return exp.reduce((s, t) => s + Number(t.amount), 0) / months
   }, [transactions])
@@ -197,13 +201,20 @@ export default function Transactions({ onAdd }) {
           {typeFilter === 'Expense' && (
             <>
               <div className="flex-1 bg-card-2 rounded-xl p-3">
-                <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">SPENDING</p>
+                <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">SPENT</p>
                 <Amount value={totalExpense} className="text-sm font-bold text-red" />
               </div>
-              <div className="flex-1 bg-card-2 rounded-xl p-3">
-                <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">MONTHLY AVG</p>
-                <Amount value={monthlyAvg} className="text-sm font-bold text-red" />
-              </div>
+              {totalInvested > 0 ? (
+                <div className="flex-1 bg-card-2 rounded-xl p-3">
+                  <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">INVESTED</p>
+                  <Amount value={totalInvested} className="text-sm font-bold text-green" />
+                </div>
+              ) : (
+                <div className="flex-1 bg-card-2 rounded-xl p-3">
+                  <p className="text-[9px] text-gray-500 uppercase tracking-widest mb-1">MONTHLY AVG</p>
+                  <Amount value={monthlyAvg} className="text-sm font-bold text-red" />
+                </div>
+              )}
             </>
           )}
           {typeFilter === 'Income' && (

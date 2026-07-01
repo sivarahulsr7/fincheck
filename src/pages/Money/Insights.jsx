@@ -3,6 +3,7 @@ import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { CATEGORIES } from '../../utils/constants'
 import { monthKey, startOfMonth } from '../../utils/formatters'
+import { isSpendingExpense } from '../../utils/txClassify'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend
@@ -19,7 +20,7 @@ export default function Insights() {
       const mk = monthKey(d)
       const mtxs = transactions.filter((t) => monthKey(t.date) === mk)
       const income  = mtxs.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-      const expense = mtxs.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
+      const expense = mtxs.filter(isSpendingExpense).reduce((s, t) => s + Number(t.amount), 0)
       result.push({ label: d.toLocaleDateString('en-IN', { month: 'short' }), income, expense })
     }
     return result
@@ -27,7 +28,7 @@ export default function Insights() {
 
   const catData = useMemo(() => {
     const tmStr = startOfMonth(0)
-    const monthExp = transactions.filter((t) => t.type === 'expense' && t.date >= tmStr)
+    const monthExp = transactions.filter((t) => isSpendingExpense(t) && t.date >= tmStr)
     const total = monthExp.reduce((s, t) => s + Number(t.amount), 0)
     return CATEGORIES.filter((c) => c.type === 'expense').map((cat) => {
       const value = monthExp.filter((t) => t.categoryId === cat.id).reduce((s, t) => s + Number(t.amount), 0)

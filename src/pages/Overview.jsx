@@ -7,6 +7,7 @@ import AppHeader from '../components/layout/AppHeader'
 import BottomSheet from '../components/common/BottomSheet'
 import { CATEGORIES } from '../utils/constants'
 import { fmtPct, nDaysAgo, startOfMonth } from '../utils/formatters'
+import { isSpendingExpense, isInvestmentExpense } from '../utils/txClassify'
 
 const TIME_FILTERS = [
   { id: '7d',  label: '7D',  days: 7 },
@@ -53,12 +54,14 @@ export default function Overview({ onNavigate, onFabAction }) {
   const mStart = startOfMonth(-(months - 1))
   const mTxs = transactions.filter((t) => t.date >= mStart)
   const mIncome  = mTxs.filter((t) => t.type === 'income').reduce((s, t) => s + Number(t.amount), 0)
-  const mExpense = mTxs.filter((t) => t.type === 'expense').reduce((s, t) => s + Number(t.amount), 0)
-  const mOverspent = mExpense > mIncome
+  const mSpent    = mTxs.filter(isSpendingExpense).reduce((s, t) => s + Number(t.amount), 0)
+  const mInvested = mTxs.filter(isInvestmentExpense).reduce((s, t) => s + Number(t.amount), 0)
+  const mExpense = mSpent + mInvested // total money out
+  const mOverspent = mSpent > mIncome // overspending is about consumption, not investing
 
-  // Where it went (category breakdown for current period)
+  // Where it went (consumption only — investing is not spending)
   const tmStr = startOfMonth(0)
-  const monthExpenses = transactions.filter((t) => t.type === 'expense' && t.date >= tmStr)
+  const monthExpenses = transactions.filter((t) => isSpendingExpense(t) && t.date >= tmStr)
   const totalExp = monthExpenses.reduce((s, t) => s + Number(t.amount), 0)
   const catBreakdown = CATEGORIES.filter((c) => c.type === 'expense').map((cat) => {
     const spent = monthExpenses.filter((t) => t.categoryId === cat.id).reduce((s, t) => s + Number(t.amount), 0)
@@ -201,10 +204,10 @@ export default function Overview({ onNavigate, onFabAction }) {
               ))}
             </div>
 
-            {mExpense > mIncome && mExpense > 0 && (
+            {mOverspent && mSpent > 0 && (
               <button onClick={() => goMoney('transactions')} className="text-red text-xs mb-3 text-left w-full">
                 {mIncome > 0
-                  ? `Spent ${Math.round((mExpense / mIncome) * 100)}% of income · day ${today}/${daysInMonth} →`
+                  ? `Spent ${Math.round((mSpent / mIncome) * 100)}% of income · day ${today}/${daysInMonth} →`
                   : `No income this period · day ${today}/${daysInMonth} →`}
               </button>
             )}
@@ -219,23 +222,28 @@ export default function Overview({ onNavigate, onFabAction }) {
               <p className="text-[11px] text-gray-400 mt-0.5">all income</p>
             </button>
 
-            {/* OUT */}
+            {/* OUT — total money out, split into spent (consumption) + invested */}
             <button onClick={() => goMoney('transactions')} className="w-full rounded-xl bg-red-tint border border-red-dim p-3 mb-2 text-left active:opacity-70">
               <div className="flex items-center gap-1 mb-1">
                 <ArrowUpRight size={13} className="text-red" />
                 <span className="text-[10px] font-bold tracking-widest text-red">OUT</span>
               </div>
               <Amount value={mExpense} className="text-lg font-bold text-red" />
+              {mInvested > 0 && (
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Spent <Amount value={mSpent} className="text-gray-300" /> · Invested <Amount value={mInvested} className="text-gray-300" />
+                </p>
+              )}
             </button>
 
             {/* Overspent */}
-            {mOverspent && mExpense > 0 && (
+            {mOverspent && mSpent > 0 && (
               <button onClick={() => goMoney('budget')} className="w-full rounded-xl bg-red-tint border border-red-dim p-3 mb-3 text-left active:opacity-70">
                 <div className="flex items-center gap-1 mb-1">
                   <AlertCircle size={13} className="text-red" />
                   <span className="text-[10px] font-bold tracking-widest text-red">OVERSPENT</span>
                 </div>
-                <Amount value={mExpense - mIncome} className="text-base font-bold text-red" />
+                <Amount value={mSpent - mIncome} className="text-base font-bold text-red" />
               </button>
             )}
 
