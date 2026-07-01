@@ -4,11 +4,6 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-:root {
-  --sat: env(safe-area-inset-top);
-  --sab: env(safe-area-inset-bottom);
-}
-
 html, body {
   margin: 0;
   padding: 0;
@@ -175,16 +170,15 @@ body {
 .page-content {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 80px;
+  padding-bottom: 24px;
 }
 
+/* In-flow (not position:fixed) so it sits at the true bottom of the
+   full-height flex column. On iOS standalone, a position:fixed bottom:0
+   nav was being anchored above the real screen bottom, leaving a dead
+   band beneath it; an in-flow nav tracks the container's actual bottom. */
 .nav-bar {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
+  flex-shrink: 0;
   background: rgba(10,10,10,0.95);
   backdrop-filter: blur(12px);
   border-top: 1px solid #1f1f1f;
