@@ -35,9 +35,15 @@ export default function TransactionForm({ type: initialType = 'expense', transac
     if (id !== 'investment') setAssetId('')
   }
 
+  // EMI / Investment categories require an explicit target choice (a specific
+  // loan/asset, or "Other").
+  const linkOk =
+    (categoryId !== 'emi' || !!liabilityId) &&
+    (categoryId !== 'investment' || !!assetId)
+
   const valid = amount && Number(amount) > 0 &&
     (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
-    date && date <= todayISO()
+    date && date <= todayISO() && linkOk
 
   const handleSave = async () => {
     if (!valid || saving) return
@@ -47,10 +53,10 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
         categoryId: type === 'transfer' ? null : categoryId,
         accountId, toAccountId: type === 'transfer' ? toAccountId : null,
-        // Links are category-driven: loan repayment for EMI, asset contribution
-        // for Investment (expenses only).
-        liabilityId: type === 'expense' && categoryId === 'emi' ? (liabilityId || null) : null,
-        assetId: type === 'expense' && categoryId === 'investment' ? (assetId || null) : null,
+        // Links are category-driven. "other" is a valid explicit choice that
+        // links to nothing specific (stored as null).
+        liabilityId: type === 'expense' && categoryId === 'emi' && liabilityId && liabilityId !== 'other' ? liabilityId : null,
+        assetId: type === 'expense' && categoryId === 'investment' && assetId && assetId !== 'other' ? assetId : null,
         date, note,
       }
       if (editing) await updateTransaction(transaction.id, data)
@@ -133,54 +139,44 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         </div>
       )}
 
-      {/* Loan repayment — shown only for the "EMI & Loans" category. */}
+      {/* Loan repayment — required choice for the "EMI & Loans" category. */}
       {type === 'expense' && categoryId === 'emi' && (
         <div>
-          <label className={labelCls}>Loan (which one is this repaying?)</label>
-          {liabilities.length === 0 ? (
-            <p className="text-[11px] text-gray-500">No loans yet. Add one in Wealth → Liabilities to track repayments.</p>
-          ) : (
-            <>
-              <select value={liabilityId} onChange={(e) => setLiabilityId(e.target.value)}
-                className={`${inputCls} cursor-pointer`}>
-                <option value="">Don't link to a loan</option>
-                {liabilities.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </select>
-              {liabilityId && (
-                liabilities.find((l) => l.id === liabilityId)?.interestRate == null ? (
-                  <p className="text-[11px] text-orange-400 mt-1">
-                    ⚠ This loan has no interest rate — the full payment will reduce principal. Set a rate in Wealth → Liabilities for accurate tracking.
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-gray-500 mt-1">
-                    Reduces this loan's outstanding principal (interest is excluded automatically).
-                  </p>
-                )
-              )}
-            </>
+          <label className={labelCls}>Which loan is this repaying? *</label>
+          <select value={liabilityId} onChange={(e) => setLiabilityId(e.target.value)}
+            className={`${inputCls} cursor-pointer`}>
+            <option value="" disabled>Select a loan…</option>
+            {liabilities.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            <option value="other">Other (no specific loan)</option>
+          </select>
+          {liabilityId && liabilityId !== 'other' && (
+            liabilities.find((l) => l.id === liabilityId)?.interestRate == null ? (
+              <p className="text-[11px] text-orange-400 mt-1">
+                ⚠ This loan has no interest rate — the full payment will reduce principal. Set a rate in Wealth → Liabilities for accurate tracking.
+              </p>
+            ) : (
+              <p className="text-[11px] text-gray-500 mt-1">
+                Reduces this loan's outstanding principal (interest is excluded automatically).
+              </p>
+            )
           )}
         </div>
       )}
 
-      {/* Investment contribution — shown only for the "Investment" category. */}
+      {/* Investment contribution — required choice for the "Investment" category. */}
       {type === 'expense' && categoryId === 'investment' && (
         <div>
-          <label className={labelCls}>Asset (which one is this contributing to?)</label>
-          {assets.length === 0 ? (
-            <p className="text-[11px] text-gray-500">No assets yet. Add one in Wealth → Assets to track contributions.</p>
-          ) : (
-            <>
-              <select value={assetId} onChange={(e) => setAssetId(e.target.value)}
-                className={`${inputCls} cursor-pointer`}>
-                <option value="">Don't link to an asset</option>
-                {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              {assetId && (
-                <p className="text-[11px] text-gray-500 mt-1">
-                  Adds this amount to the asset's invested value and current value.
-                </p>
-              )}
-            </>
+          <label className={labelCls}>Which asset is this contributing to? *</label>
+          <select value={assetId} onChange={(e) => setAssetId(e.target.value)}
+            className={`${inputCls} cursor-pointer`}>
+            <option value="" disabled>Select an asset…</option>
+            {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <option value="other">Other (no specific asset)</option>
+          </select>
+          {assetId && assetId !== 'other' && (
+            <p className="text-[11px] text-gray-500 mt-1">
+              Adds this amount to the asset's invested value and current value.
+            </p>
           )}
         </div>
       )}
