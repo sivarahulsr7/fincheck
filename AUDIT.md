@@ -2,8 +2,9 @@
 
 > **Status (fix pass complete).** Tier 1 and Tier 2 fully fixed and verified
 > (91 unit tests). Tier 3: PIN lock bypass, biometric onboarding, and
-> change-PIN verification fixed; committed `firestore.rules` (requires auth) —
-> **must be deployed once** with `firebase deploy --only firestore:rules`.
+> change-PIN verification fixed; `firestore.rules` (requires auth) committed
+> **and deployed** to fincheck-sr7 — the database now rejects all
+> unauthenticated access.
 > **Deliberately deferred** (documented at the bottom): (a) full multi-tenant
 > collection restructure — would strand existing data; the auth-required rules
 > close the public hole for this single-user app; (b) PIN plaintext→hash —
