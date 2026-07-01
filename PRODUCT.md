@@ -9,6 +9,12 @@ useful.** Pick items by ID (e.g. "do TXN-1, LIA-2, REC-1") and I'll implement.
 - Effort: **S** (hours) · **M** (~a day) · **L** (multi-day / data-model change)
 - 💰 = needs care to stay 100% free (flagged); everything else is free-safe.
 
+## Build status (selected by user)
+- ✅ **Shipped:** REC-1, REC-2, REC-3, REC-4 (recurring transactions + upcoming view + auto-link + in-app reminders)
+- ⏳ **Queued (in order):** TXN-6 → TXN-1 → TXN-2 → TXN-3 → TXN-5 → TXN-7 → BUD-1..6 → INS-1,2,3,4,5 → NW-1,2,3 → AST-1,2,3,5,6 (+AST-4 only if a free price API is viable)
+- ❌ **Dropped (needs paid):** TXN-4 (receipt storage), INS-6 (PDF export)
+Each item ships as its own tested commit.
+
 ---
 
 ## Recurring & automation — *the single biggest missing feature*
