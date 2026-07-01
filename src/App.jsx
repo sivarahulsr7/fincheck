@@ -17,6 +17,31 @@ import TransactionForm from './components/forms/TransactionForm'
 import AssetForm from './components/forms/AssetForm'
 import LiabilityForm from './components/forms/LiabilityForm'
 
+// TEMPORARY layout diagnostic — shows real viewport/screen/safe-area numbers so
+// we can pinpoint the standalone bottom-gap cause. Remove once resolved.
+export function LayoutDebug() {
+  const cs = getComputedStyle(document.documentElement)
+  const vv = window.visualViewport || {}
+  const rows = {
+    standalone: String(window.navigator.standalone),
+    innerH: window.innerHeight,
+    clientH: document.documentElement.clientHeight,
+    visualVpH: Math.round(vv.height || 0),
+    screenH: window.screen.height,
+    availH: window.screen.availHeight,
+    dpr: window.devicePixelRatio,
+    'safe-top': cs.getPropertyValue('--sat').trim() || '0',
+    'safe-bot': cs.getPropertyValue('--sab').trim() || '0',
+  }
+  return (
+    <div style={{ position: 'fixed', top: 'env(safe-area-inset-top)', left: 0, right: 0, zIndex: 9999,
+      background: 'rgba(255,0,0,0.92)', color: '#fff', fontSize: 11, lineHeight: 1.35,
+      padding: '6px 8px', fontFamily: 'monospace' }}>
+      {Object.entries(rows).map(([k, v]) => <span key={k} style={{ marginRight: 10 }}>{k}:{String(v)}</span>)}
+    </div>
+  )
+}
+
 export default function App() {
   const { isLocked, pinSetupDone, activeTab, touchActivity } = useAppStore()
   const { init, loading } = useFinanceStore()
