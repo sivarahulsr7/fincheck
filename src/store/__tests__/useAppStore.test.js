@@ -81,16 +81,22 @@ describe('wrongPin', () => {
     expect(useAppStore.getState().wrongAttempts).toBe(2)
   })
 
-  it('resets PIN and clears state after 3 wrong attempts', () => {
+  it('resets PIN but STAYS LOCKED after 3 wrong attempts (no bypass)', () => {
     useAppStore.getState().wrongPin()
     useAppStore.getState().wrongPin()
-    useAppStore.getState().wrongPin()
+    const reset = useAppStore.getState().wrongPin()
     const s = useAppStore.getState()
+    expect(reset).toBe(true)          // signals the caller to sign out
     expect(s.pin).toBeNull()
     expect(s.pinSetupDone).toBe(false)
     expect(s.wrongAttempts).toBe(0)
-    expect(s.isLocked).toBe(false)
+    expect(s.isLocked).toBe(true)     // must remain locked — resetting must not grant access
     expect(s.biometricEnabled).toBe(false)
+  })
+
+  it('returns false while below the reset threshold', () => {
+    expect(useAppStore.getState().wrongPin()).toBe(false)
+    expect(useAppStore.getState().wrongPin()).toBe(false)
   })
 
   it('clears biometric storage key after 3 wrong attempts', () => {

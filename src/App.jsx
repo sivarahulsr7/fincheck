@@ -80,9 +80,17 @@ export default function App() {
     </div>
   )
 
-  // Show PIN screen immediately (isLocked starts true) — auth loads in background
-  // This eliminates the 2-3s splash in standalone PWA mode
-  if (isLocked || !pinSetupDone) return <PinLock />
+  // Setting up a PIN requires an authenticated user — this closes the reset
+  // bypass (3 wrong attempts clears the PIN and signs out, so a new PIN can
+  // only be set after re-authenticating with Google).
+  if (!pinSetupDone) {
+    if (authLoading) return <Splash />
+    if (!user) return <LoginScreen />
+    return <PinLock />
+  }
+  // Normal lock: show the PIN entry screen immediately (auth loads in the
+  // background) to avoid the 2-3s splash in standalone PWA mode.
+  if (isLocked) return <PinLock />
   if (authLoading) return <Splash />
   if (!user) return <LoginScreen />
   if (loading) return <Splash />

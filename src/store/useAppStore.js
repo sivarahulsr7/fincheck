@@ -20,15 +20,21 @@ export const useAppStore = create(
       setPin: (pin) => set({ pin, pinSetupDone: true, isLocked: false }),
       lock: () => set({ isLocked: true }),
       unlock: () => set({ isLocked: false, wrongAttempts: 0, lastActive: Date.now() }),
+      // On too many wrong attempts, clear the PIN and biometric but KEEP the
+      // app locked (isLocked stays true, pinSetupDone becomes false). Because
+      // setting up a PIN now requires an authenticated user (see App.jsx) and
+      // PinLock signs the user out on reset, a new PIN can only be set after
+      // re-authenticating with Google — so failed attempts never grant access.
+      // Returns true when a reset was triggered.
       wrongPin: () => {
-        const { wrongAttempts } = get()
-        const next = wrongAttempts + 1
+        const next = get().wrongAttempts + 1
         if (next >= PIN_RESET_ATTEMPTS) {
-          set({ pin: null, pinSetupDone: false, isLocked: false, wrongAttempts: 0, biometricEnabled: false })
+          set({ pin: null, pinSetupDone: false, isLocked: true, wrongAttempts: 0, biometricEnabled: false })
           localStorage.removeItem('fincheck-biometric-id')
-        } else {
-          set({ wrongAttempts: next })
+          return true
         }
+        set({ wrongAttempts: next })
+        return false
       },
 
       setBiometricEnabled: (val) => set({ biometricEnabled: val }),

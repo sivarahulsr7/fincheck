@@ -12,9 +12,10 @@ import {
 
 export default function PinLock() {
   const { pin, pinSetupDone, isLocked, setPin, unlock, wrongPin, wrongAttempts, biometricEnabled, setBiometricEnabled } = useAppStore()
-  const { user } = useAuthStore()
+  const { user, signOut } = useAuthStore()
   const [input, setInput] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
+  const [pendingPin, setPendingPin] = useState('')
   const [step, setStep] = useState('enter')
   const [shake, setShake] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -84,9 +85,14 @@ export default function PinLock() {
       setInput(next)
       if (next.length === 4) {
         if (next === confirmPin) {
-          setPin(next)
-          // After PIN setup, offer biometrics
-          if (biometricAvail) setShowBiometricPrompt(true)
+          // Offer biometrics BEFORE committing the PIN — setPin() unlocks and
+          // unmounts this screen, so committing first would skip the prompt.
+          if (biometricAvail) {
+            setPendingPin(next)
+            setShowBiometricPrompt(true)
+          } else {
+            setPin(next)
+          }
         } else {
           doShake('PINs do not match. Try again.')
           setConfirmPin('')
@@ -99,8 +105,15 @@ export default function PinLock() {
         if (next === pin) {
           unlock()
         } else {
-          wrongPin()
-          doShake(wrongAttempts + 1 >= 3 ? 'PIN reset. Set a new PIN.' : 'Wrong PIN')
+          const didReset = wrongPin()
+          if (didReset) {
+            // Too many attempts — sign out so a new PIN can only be set after
+            // re-authenticating with Google (no lock bypass).
+            signOut()
+            doShake('Too many attempts. Sign in again to reset your PIN.')
+          } else {
+            doShake('Wrong PIN')
+          }
         }
       }
     }
@@ -112,12 +125,16 @@ export default function PinLock() {
     try {
       await registerBiometric(user?.uid || 'fincheck')
       setBiometricEnabled(true)
-      setShowBiometricPrompt(false)
-      unlock()
-    } catch {
-      setShowBiometricPrompt(false)
-      unlock()
-    }
+    } catch { /* registration cancelled — fall through to PIN-only */ }
+    setShowBiometricPrompt(false)
+    setPin(pendingPin) // commits the PIN and unlocks
+    setPendingPin('')
+  }
+
+  const skipBiometric = () => {
+    setShowBiometricPrompt(false)
+    setPin(pendingPin) // commits the PIN and unlocks
+    setPendingPin('')
   }
 
   const KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9]
@@ -149,7 +166,7 @@ export default function PinLock() {
           Enable Biometrics
         </button>
         <button
-          onClick={() => { setShowBiometricPrompt(false); unlock() }}
+          onClick={skipBiometric}
           className="w-full text-gray-400 py-3 text-sm">
           Skip, use PIN only
         </button>
@@ -214,7 +231,7 @@ export default function PinLock() {
 
         {step === 'enter' && (
           <p className="text-gray-500 text-xs mt-2 text-center px-8">
-            Forgot PIN? Enter incorrectly 3 times to reset
+            Forgot PIN? 3 wrong tries signs you out; reset by signing in again.
           </p>
         )}
       </div>

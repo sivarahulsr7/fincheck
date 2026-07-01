@@ -42,8 +42,10 @@ export default function Settings({ onBack }) {
   const [pinBuffer, setPinBuffer] = useState('')
   const [pinError, setPinError] = useState('')
 
+  // Step 0 = verify current PIN (only when one is already set), 1 = enter new,
+  // 2 = confirm new.
   const resetPinSheet = () => {
-    setPinInput(''); setPinStep(1); setPinBuffer(''); setPinError('')
+    setPinInput(''); setPinStep(pinSetupDone ? 0 : 1); setPinBuffer(''); setPinError('')
     setShowPinChange(false)
   }
 
@@ -51,22 +53,23 @@ export default function Settings({ onBack }) {
     if (pinInput.length >= 4) return
     const next = pinInput + d
     setPinInput(next)
-    if (next.length === 4) {
-      if (pinStep === 1) {
-        setPinBuffer(next)
-        setPinInput('')
-        setPinStep(2)
-        setPinError('')
+    if (next.length !== 4) return
+
+    if (pinStep === 0) {
+      if (next === pin) {
+        setPinInput(''); setPinStep(1); setPinError('')
       } else {
-        if (next === pinBuffer) {
-          setPin(next)
-          resetPinSheet()
-        } else {
-          setPinError('PINs do not match. Try again.')
-          setPinInput('')
-          setPinBuffer('')
-          setPinStep(1)
-        }
+        setPinError('Incorrect current PIN.'); setPinInput('')
+      }
+    } else if (pinStep === 1) {
+      setPinBuffer(next); setPinInput(''); setPinStep(2); setPinError('')
+    } else {
+      if (next === pinBuffer) {
+        setPin(next)
+        resetPinSheet()
+      } else {
+        setPinError('PINs do not match. Try again.')
+        setPinInput(''); setPinBuffer(''); setPinStep(1)
       }
     }
   }
@@ -230,10 +233,10 @@ export default function Settings({ onBack }) {
 
       {/* PIN change sheet — uses same numpad as lock screen */}
       <BottomSheet open={showPinChange} onClose={resetPinSheet}
-        title={pinStep === 1 ? 'Enter New PIN' : 'Confirm PIN'}>
+        title={pinStep === 0 ? 'Enter Current PIN' : pinStep === 1 ? 'Enter New PIN' : 'Confirm PIN'}>
         <div className="flex flex-col items-center gap-6 py-2">
           <p className="text-xs text-gray-500">
-            {pinStep === 1 ? 'Enter a new 4-digit PIN' : 'Enter it again to confirm'}
+            {pinStep === 0 ? 'Verify your current 4-digit PIN' : pinStep === 1 ? 'Enter a new 4-digit PIN' : 'Enter it again to confirm'}
           </p>
 
           {/* Dots */}

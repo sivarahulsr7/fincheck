@@ -1,5 +1,16 @@
 # FinCheck — Full Application Audit
 
+> **Status (fix pass complete).** Tier 1 and Tier 2 fully fixed and verified
+> (91 unit tests). Tier 3: PIN lock bypass, biometric onboarding, and
+> change-PIN verification fixed; committed `firestore.rules` (requires auth) —
+> **must be deployed once** with `firebase deploy --only firestore:rules`.
+> **Deliberately deferred** (documented at the bottom): (a) full multi-tenant
+> collection restructure — would strand existing data; the auth-required rules
+> close the public hole for this single-user app; (b) PIN plaintext→hash —
+> needs a legacy-compare migration or it locks the user out. `onPointerDown`
+> on the sub-tabs was kept (it fixed the earlier "tabs freeze" report).
+
+
 A harsh, exhaustive review of the entire app by 5 parallel reviewers (data/state layer, Money section, Wealth section, app shell/auth, shared components/config). Findings are grouped by **fix tier** (blast radius), then listed by subsystem with severity, location, problem, and fix.
 
 **Guiding constraint:** there is real financial data in a working app. No fix may strand or corrupt it. "Fix everything" = make it better without breaking what works.
