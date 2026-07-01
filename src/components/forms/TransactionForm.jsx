@@ -7,7 +7,7 @@ import CategoryIcon from '../common/CategoryIcon'
 import DatePicker from '../common/DatePicker'
 
 export default function TransactionForm({ type: initialType = 'expense', transaction, onClose }) {
-  const { accounts, addTransaction, updateTransaction } = useFinanceStore()
+  const { accounts, liabilities, assets, addTransaction, updateTransaction } = useFinanceStore()
   const editing = !!transaction
   const [type, setType] = useState(transaction?.type || initialType)
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
@@ -17,6 +17,8 @@ export default function TransactionForm({ type: initialType = 'expense', transac
   const [toAccountId, setToAccountId] = useState(transaction?.toAccountId || '')
   const [date, setDate] = useState(transaction?.date || todayISO())
   const [note, setNote] = useState(transaction?.note || transaction?.notes || '')
+  const [liabilityId, setLiabilityId] = useState(transaction?.liabilityId || '')
+  const [assetId, setAssetId] = useState(transaction?.assetId || '')
   const [saving, setSaving] = useState(false)
 
   const cats = CATEGORIES.filter((c) => {
@@ -37,6 +39,9 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
         categoryId: type === 'transfer' ? null : categoryId,
         accountId, toAccountId: type === 'transfer' ? toAccountId : null,
+        // Links only apply to expenses (repayments / contributions are outflows).
+        liabilityId: type === 'expense' ? (liabilityId || null) : null,
+        assetId: type === 'expense' ? (assetId || null) : null,
         date, note,
       }
       if (editing) await updateTransaction(transaction.id, data)
@@ -116,6 +121,39 @@ export default function TransactionForm({ type: initialType = 'expense', transac
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
+        </div>
+      )}
+
+      {/* Link to a liability (repayment) or asset (contribution) — expenses only.
+          Selecting one clears the other; the two are mutually exclusive. */}
+      {type === 'expense' && liabilities.length > 0 && !assetId && (
+        <div>
+          <label className={labelCls}>Loan repayment (optional)</label>
+          <select value={liabilityId} onChange={(e) => { setLiabilityId(e.target.value); if (e.target.value) setAssetId('') }}
+            className={`${inputCls} cursor-pointer`}>
+            <option value="">Not a repayment</option>
+            {liabilities.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+          {liabilityId && (
+            <p className="text-[11px] text-gray-500 mt-1">
+              Reduces this loan's outstanding principal (interest is excluded automatically).
+            </p>
+          )}
+        </div>
+      )}
+      {type === 'expense' && assets.length > 0 && !liabilityId && (
+        <div>
+          <label className={labelCls}>Investment contribution (optional)</label>
+          <select value={assetId} onChange={(e) => { setAssetId(e.target.value); if (e.target.value) setLiabilityId('') }}
+            className={`${inputCls} cursor-pointer`}>
+            <option value="">Not a contribution</option>
+            {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {assetId && (
+            <p className="text-[11px] text-gray-500 mt-1">
+              Adds this amount to the asset's invested value and current value.
+            </p>
+          )}
         </div>
       )}
 

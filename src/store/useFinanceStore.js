@@ -54,6 +54,47 @@ export const mergeDeltas = (a, b) => {
   return out
 }
 
+// Portion of a loan payment that reduces PRINCIPAL. interest = outstanding *
+// monthly rate; principal = payment - interest, clamped to [0, outstanding] so
+// a payoff lands exactly at 0 and an underpayment never goes negative. No rate
+// → the whole payment is principal.
+export function principalPortion(payment, outstanding, annualRatePct) {
+  const p = Number(payment)
+  const out = Number(outstanding)
+  if (!Number.isFinite(p) || !Number.isFinite(out) || out <= 0) return 0
+  const rate = Number(annualRatePct)
+  const interest = Number.isFinite(rate) && rate > 0 ? out * (rate / 100 / 12) : 0
+  return Math.max(0, Math.min(p - interest, out))
+}
+
+// Everything a transaction changes, keyed by collection. Account deltas come
+// from txDeltas; a linked liability repayment reduces its outstanding by the
+// STORED principal (so reversal is exact), and a linked asset contribution
+// raises its value by the STORED contribution. Exported for unit testing.
+export function txEffects(t) {
+  const eff = { accounts: txDeltas(t), liabilities: {}, assets: {} }
+  if (!t) return eff
+  if (t.liabilityId) {
+    const p = Number(t.liabilityPrincipal)
+    if (Number.isFinite(p) && p !== 0) eff.liabilities[t.liabilityId] = -p
+  }
+  if (t.assetId) {
+    const c = Number(t.assetContribution)
+    if (Number.isFinite(c) && c !== 0) eff.assets[t.assetId] = c
+  }
+  return eff
+}
+
+export const negateEffects = (e) => ({
+  accounts: negate(e.accounts), liabilities: negate(e.liabilities), assets: negate(e.assets),
+})
+
+export const mergeEffects = (a, b) => ({
+  accounts: mergeDeltas(a.accounts, b.accounts),
+  liabilities: mergeDeltas(a.liabilities, b.liabilities),
+  assets: mergeDeltas(a.assets, b.assets),
+})
+
 // ─── Local-only CRUD (used when Firebase is not configured) ───────────────────
 // State is held in Zustand + persisted via zustand/persist in localStorage.
 
@@ -240,11 +281,14 @@ export const useFinanceStore = create(
       // writes) and no stale client read is involved (no same-account edit
       // drift). Deltas for accounts that no longer exist are dropped so we
       // never resurrect a deleted account via merge.
-      _commitTx: async ({ txId, txWrite, txMerge, deltas, removeTxId }) => {
-        const existing = new Set(get().accounts.map((a) => a.id))
-        const applied = Object.fromEntries(
-          Object.entries(deltas).filter(([accId, v]) => existing.has(accId) && v !== 0)
-        )
+      _commitTx: async ({ txId, txWrite, txMerge, effects, removeTxId }) => {
+        // Drop deltas for docs that no longer exist so we never resurrect a
+        // deleted account/liability/asset via merge.
+        const filt = (obj, ids) => Object.fromEntries(
+          Object.entries(obj || {}).filter(([id, v]) => ids.has(id) && v !== 0))
+        const accD  = filt(effects.accounts,    new Set(get().accounts.map((a) => a.id)))
+        const liabD = filt(effects.liabilities, new Set(get().liabilities.map((l) => l.id)))
+        const astD  = filt(effects.assets,      new Set(get().assets.map((a) => a.id)))
 
         if (!FIREBASE_CONFIGURED) {
           set((s) => ({
@@ -254,9 +298,11 @@ export const useFinanceStore = create(
                 ? s.transactions.map((t) => t.id === txId ? { ...t, ...txWrite } : t)
                 : [...s.transactions, txWrite],
             accounts: s.accounts.map((a) =>
-              applied[a.id] != null
-                ? { ...a, balance: (a.balance || 0) + applied[a.id], updatedAt: Date.now() }
-                : a),
+              accD[a.id] != null ? { ...a, balance: (a.balance || 0) + accD[a.id], updatedAt: Date.now() } : a),
+            liabilities: s.liabilities.map((l) =>
+              liabD[l.id] != null ? { ...l, outstandingAmount: Math.max(0, (l.outstandingAmount || 0) + liabD[l.id]), updatedAt: Date.now() } : l),
+            assets: s.assets.map((a) =>
+              astD[a.id] != null ? { ...a, investedAmount: (a.investedAmount || 0) + astD[a.id], currentValue: (a.currentValue || 0) + astD[a.id], updatedAt: Date.now() } : a),
           }))
           return
         }
@@ -264,34 +310,60 @@ export const useFinanceStore = create(
         const batch = writeBatch(db)
         if (removeTxId) batch.delete(docRef('transactions', removeTxId))
         else batch.set(docRef('transactions', txId), txWrite, txMerge ? { merge: true } : undefined)
-        for (const [accId, delta] of Object.entries(applied)) {
-          batch.set(docRef('accounts', accId), { balance: increment(delta), updatedAt: Date.now() }, { merge: true })
-        }
+        for (const [id, d] of Object.entries(accD))
+          batch.set(docRef('accounts', id), { balance: increment(d), updatedAt: Date.now() }, { merge: true })
+        for (const [id, d] of Object.entries(liabD))
+          batch.set(docRef('liabilities', id), { outstandingAmount: increment(d), updatedAt: Date.now() }, { merge: true })
+        for (const [id, d] of Object.entries(astD))
+          batch.set(docRef('assets', id), { investedAmount: increment(d), currentValue: increment(d), updatedAt: Date.now() }, { merge: true })
         await batch.commit()
+      },
+
+      // Resolve the stored principal/contribution for a transaction's links,
+      // computing the loan principal off the given base outstanding.
+      _resolveLinks: (tx, baseOutstandingOverride) => {
+        const out = { ...tx, liabilityId: tx.liabilityId || null, assetId: tx.assetId || null }
+        if (out.liabilityId) {
+          const liab = get().liabilities.find((l) => l.id === out.liabilityId)
+          const base = baseOutstandingOverride != null ? baseOutstandingOverride : (liab?.outstandingAmount || 0)
+          out.liabilityPrincipal = liab ? principalPortion(out.amount, base, liab.interestRate) : 0
+        } else out.liabilityPrincipal = 0
+        out.assetContribution = out.assetId ? out.amount : 0
+        return out
       },
 
       addTransaction: async (data) => {
         const amt = Number(data.amount)
         const id = FIREBASE_CONFIGURED ? newId() : crypto.randomUUID()
-        const tx = { ...data, amount: Number.isFinite(amt) ? amt : 0, id, createdAt: Date.now(), updatedAt: Date.now() }
-        await get()._commitTx({ txId: id, txWrite: tx, deltas: txDeltas(tx) })
+        let tx = { ...data, amount: Number.isFinite(amt) ? amt : 0, id, createdAt: Date.now(), updatedAt: Date.now() }
+        tx = get()._resolveLinks(tx)
+        await get()._commitTx({ txId: id, txWrite: tx, effects: txEffects(tx) })
       },
 
       updateTransaction: async (id, data) => {
         const old = get().transactions.find((t) => t.id === id)
         const amt = Number(data.amount)
         const safeAmt = Number.isFinite(amt) ? amt : (old?.amount || 0)
-        const txWrite = { ...data, amount: safeAmt, updatedAt: Date.now() }
+        let txWrite = { ...data, amount: safeAmt, updatedAt: Date.now() }
+        // When re-linking the SAME liability, amortize off the pre-payment
+        // outstanding (add the old principal back) so interest matches a fresh
+        // add. We reverse the old effect and apply the new — we do not
+        // re-amortize the whole payment history.
+        let base
+        if (txWrite.liabilityId && old?.liabilityId === txWrite.liabilityId) {
+          const liab = get().liabilities.find((l) => l.id === txWrite.liabilityId)
+          base = (liab?.outstandingAmount || 0) + (Number(old.liabilityPrincipal) || 0)
+        }
+        txWrite = get()._resolveLinks(txWrite, base)
         const merged = { ...old, ...txWrite }
-        // Net effect = reverse old, then apply new.
-        const deltas = mergeDeltas(negate(txDeltas(old)), txDeltas(merged))
-        await get()._commitTx({ txId: id, txWrite, txMerge: true, deltas })
+        const effects = mergeEffects(negateEffects(txEffects(old || {})), txEffects(merged))
+        await get()._commitTx({ txId: id, txWrite, txMerge: true, effects })
       },
 
       deleteTransaction: async (id) => {
         const tx = get().transactions.find((t) => t.id === id)
         if (!tx) return
-        await get()._commitTx({ removeTxId: id, deltas: negate(txDeltas(tx)) })
+        await get()._commitTx({ removeTxId: id, effects: negateEffects(txEffects(tx)) })
       },
 
       // ── Recurring ─────────────────────────────────────────────────────────
