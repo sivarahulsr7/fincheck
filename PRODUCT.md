@@ -10,8 +10,8 @@ useful.** Pick items by ID (e.g. "do TXN-1, LIA-2, REC-1") and I'll implement.
 - 💰 = needs care to stay 100% free (flagged); everything else is free-safe.
 
 ## Build status (selected by user)
-- ✅ **Shipped:** REC-1..4 (recurring) · TXN-2 (range filters), TXN-6 (undo delete), TXN-7 (bulk edit) · INS-1..5 (savings rate, movers, top spends, forecast, year summary + range toggle)
-- ⏳ **Queued (in order):** TXN-1 (split) → TXN-3 (tags) → TXN-5 (presets) → BUD-1..6 → NW-1,2,3 → AST-1,2,3,5,6 (+AST-4 only if a free price API is viable)
+- ✅ **Shipped:** REC-1..4 (recurring) · **TXN-1,2,3,5,6,7 (all transactions: split, filters, tags, presets, undo, bulk edit)** · INS-1..5 (savings rate, movers, top spends, forecast, year summary + range toggle)
+- ⏳ **Queued (in order):** BUD-1..6 → NW-1,2,3 → AST-1,2,3,5,6 (+AST-4 only if a free price API is viable)
 - ❌ **Dropped (needs paid):** TXN-4 (receipt storage), INS-6 (PDF export)
 Each item ships as its own tested commit.
 
