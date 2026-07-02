@@ -24,6 +24,16 @@ export default function TransactionForm({ type: initialType = 'expense', transac
   const [tags, setTags] = useState(transaction?.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
+  // Split (TXN-1): opt-in, expense only, create-only. Each line becomes its
+  // own categorized transaction sharing a splitGroupId — so every category
+  // report works unchanged.
+  const [splitMode, setSplitMode] = useState(false)
+  const [splitLines, setSplitLines] = useState([{ categoryId: '', amount: '' }, { categoryId: '', amount: '' }])
+  const splitTotal = splitLines.reduce((s, l) => s + (Number(l.amount) || 0), 0)
+  const splitCats = CATEGORIES.filter((c) => c.type === 'expense' && c.id !== 'emi' && c.id !== 'investment')
+  const setLine = (i, patch) => setSplitLines(splitLines.map((l, j) => j === i ? { ...l, ...patch } : l))
+  const addLine = () => setSplitLines([...splitLines, { categoryId: '', amount: '' }])
+  const removeLine = (i) => setSplitLines(splitLines.length > 2 ? splitLines.filter((_, j) => j !== i) : splitLines)
 
   const addTag = () => {
     const t = tagInput.trim().toLowerCase()
@@ -69,14 +79,33 @@ export default function TransactionForm({ type: initialType = 'expense', transac
     (categoryId !== 'emi' || !!liabilityId) &&
     (categoryId !== 'investment' || !!assetId)
 
-  const valid = amount && Number(amount) > 0 &&
-    (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
-    date && date <= todayISO() && linkOk
+  const valid = splitMode
+    ? splitLines.length >= 2 && splitLines.every((l) => l.categoryId && Number(l.amount) > 0) && accountId && date && date <= todayISO()
+    : amount && Number(amount) > 0 &&
+      (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
+      date && date <= todayISO() && linkOk
 
   const handleSave = async () => {
     if (!valid || saving) return
     setSaving(true)
     try {
+      if (splitMode) {
+        // One transaction per line, sharing a group id. The account is debited
+        // by the sum of the lines (each line debits its own portion).
+        const groupId = crypto.randomUUID()
+        for (const l of splitLines) {
+          const cat = CATEGORIES.find((c) => c.id === l.categoryId)
+          await addTransaction({
+            type: 'expense', amount: Number(l.amount),
+            description: description || cat?.name || 'Split',
+            categoryId: l.categoryId, accountId, toAccountId: null,
+            liabilityId: null, assetId: null, tags, splitGroupId: groupId,
+            date, note,
+          })
+        }
+        onClose?.()
+        return
+      }
       const data = {
         type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
         categoryId: type === 'transfer' ? null : categoryId,
@@ -116,39 +145,75 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       {/* Type selector */}
       <div className="flex gap-1 p-1 bg-card-2 rounded-xl">
         {['expense', 'income', 'transfer'].map((t) => (
-          <button key={t} onClick={() => { setType(t); setCategoryId(''); setLiabilityId(''); setAssetId('') }}
+          <button key={t} onClick={() => { setType(t); setCategoryId(''); setLiabilityId(''); setAssetId(''); setSplitMode(false) }}
             className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${type === t ? 'bg-green text-[#1a3d29]' : 'text-gray-400'}`}>
             {t}
           </button>
         ))}
       </div>
 
-      {/* Amount */}
-      <div>
-        <label className={labelCls}>Amount</label>
-        <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-          <input type="number" inputMode="decimal" placeholder="0"
-            value={amount} onChange={(e) => setAmount(e.target.value)}
-            className={`${inputCls} pl-8 text-xl font-semibold`} />
+      {/* Amount — hidden in split mode (total is the sum of the lines) */}
+      {!splitMode && (
+        <div>
+          <label className={labelCls}>Amount</label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input type="number" inputMode="decimal" placeholder="0"
+              value={amount} onChange={(e) => setAmount(e.target.value)}
+              className={`${inputCls} pl-8 text-xl font-semibold`} />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Category (not for transfer) */}
+      {/* Category (not for transfer). Expense supports opt-in Split. */}
       {type !== 'transfer' && (
         <div>
-          <label className={labelCls}>Category</label>
-          <div className="grid grid-cols-4 gap-2">
-            {cats.map((cat) => (
-              <button key={cat.id} onClick={() => selectCategory(cat.id)}
-                className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${categoryId === cat.id ? 'border-green bg-green-tint' : 'border-card-border bg-card-2'}`}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: cat.bg }}>
-                  <span style={{ color: cat.color }}><CategoryIcon icon={cat.icon} size={14} /></span>
-                </div>
-                <span className="text-[9px] text-gray-300 text-center leading-tight">{cat.name}</span>
+          <div className="flex items-center justify-between mb-1">
+            <label className={`${labelCls} mb-0`}>{splitMode ? 'Split across categories' : 'Category'}</label>
+            {type === 'expense' && !editing && (
+              <button onClick={() => setSplitMode((s) => !s)} className="text-[11px] text-green font-medium">
+                {splitMode ? 'Single category' : 'Split'}
               </button>
-            ))}
+            )}
           </div>
+
+          {splitMode ? (
+            <div className="flex flex-col gap-2">
+              {splitLines.map((l, i) => (
+                <div key={i} className="flex gap-2">
+                  <select value={l.categoryId} onChange={(e) => setLine(i, { categoryId: e.target.value })}
+                    className={`${inputCls} flex-1 cursor-pointer`}>
+                    <option value="" disabled>Category…</option>
+                    {splitCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  <div className="relative w-28">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                    <input type="number" inputMode="decimal" placeholder="0" value={l.amount}
+                      onChange={(e) => setLine(i, { amount: e.target.value })} className={`${inputCls} pl-7`} />
+                  </div>
+                  {splitLines.length > 2 && (
+                    <button onClick={() => removeLine(i)} className="text-gray-600 px-1"><X size={16} /></button>
+                  )}
+                </div>
+              ))}
+              <div className="flex items-center justify-between mt-1">
+                <button onClick={addLine} className="text-green text-xs font-medium">+ Add line</button>
+                <span className="text-xs text-gray-400">Total ₹{splitTotal.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {cats.map((cat) => (
+                <button key={cat.id} onClick={() => selectCategory(cat.id)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-xl border transition-all ${categoryId === cat.id ? 'border-green bg-green-tint' : 'border-card-border bg-card-2'}`}>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: cat.bg }}>
+                    <span style={{ color: cat.color }}><CategoryIcon icon={cat.icon} size={14} /></span>
+                  </div>
+                  <span className="text-[9px] text-gray-300 text-center leading-tight">{cat.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -265,7 +330,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       </button>
 
       {/* Save as preset (TXN-5) — only when creating a valid non-transfer txn */}
-      {!editing && valid && type !== 'transfer' && (
+      {!editing && valid && type !== 'transfer' && !splitMode && (
         <button onClick={saveAsPreset}
           className="flex items-center justify-center gap-1.5 text-gray-400 text-xs py-1">
           <Bookmark size={13} /> Save as quick-add preset
