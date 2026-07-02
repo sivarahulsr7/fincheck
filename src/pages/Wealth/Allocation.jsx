@@ -8,24 +8,19 @@ import { ASSET_TYPES } from '../../utils/constants'
 import BottomSheet from '../../components/common/BottomSheet'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 
-const ACCOUNT_BUCKETS = [
-  { id: 'bank', name: 'Bank / Savings', color: '#06B6D4' },
-  { id: 'cash', name: 'Cash',           color: '#22C55E' },
-  { id: 'upi',  name: 'UPI / Wallet',   color: '#A855F7' },
-]
-
 const KNOWN_TYPES = new Set(ASSET_TYPES.map((t) => t.id))
 
 export default function Allocation() {
-  const { assets, accounts } = useFinanceStore()
+  const { assets } = useFinanceStore()
   const balancesHidden = useAppStore((s) => s.balancesHidden)
   const allocationTargets = useAppStore((s) => s.allocationTargets)
   const setAllocationTargets = useAppStore((s) => s.setAllocationTargets)
   const [showTargets, setShowTargets] = useState(false)
   const [draft, setDraft] = useState({})
 
+  // Allocation shows INVESTED assets only — bank/cash balances are liquid
+  // funds, not part of the investment allocation mix.
   const byType = useMemo(() => {
-    // 1. Group named asset types
     const rows = ASSET_TYPES.map((at) => {
       const value = assets
         .filter((a) => a.assetType === at.id)
@@ -33,7 +28,7 @@ export default function Allocation() {
       return { ...at, value }
     })
 
-    // 2. Assets with unrecognised/missing types fall into 'other'
+    // Assets with an unrecognised/missing type fall into 'other'.
     const otherIdx = rows.findIndex((r) => r.id === 'other')
     assets.forEach((a) => {
       if (!KNOWN_TYPES.has(a.assetType)) {
@@ -41,16 +36,8 @@ export default function Allocation() {
       }
     })
 
-    // 3. Add account balances (positive only; credit cards are liabilities, skip)
-    ACCOUNT_BUCKETS.forEach((bucket) => {
-      const value = accounts
-        .filter((a) => a.type === bucket.id && (a.balance || 0) > 0)
-        .reduce((s, a) => s + a.balance, 0)
-      if (value > 0) rows.push({ ...bucket, value })
-    })
-
     return rows.filter((t) => t.value > 0)
-  }, [assets, accounts])
+  }, [assets])
 
   const total = byType.reduce((s, t) => s + t.value, 0)
   const pctOf = (v) => total > 0 ? (v / total) * 100 : 0
