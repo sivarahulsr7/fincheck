@@ -20,6 +20,7 @@ export const useAppStore = create(
       activeTab: 'overview',
       moneySubTab: 'transactions',
       wealthSubTab: 'assets',
+      presets: [], // quick-add transaction templates (TXN-5)
 
       // Store a salted hash, never the raw PIN (falls back to plaintext only
       // when crypto.subtle is unavailable, e.g. a non-secure context).
@@ -80,6 +81,8 @@ export const useAppStore = create(
       touchActivity: () => set({ lastActive: Date.now() }),
       toggleBalances: () => set((s) => ({ balancesHidden: !s.balancesHidden })),
       toggleShowLiabilities: () => set((s) => ({ showLiabilities: !s.showLiabilities })),
+      addPreset: (p) => set((s) => ({ presets: [...s.presets, { ...p, id: crypto.randomUUID() }] })),
+      removePreset: (id) => set((s) => ({ presets: s.presets.filter((p) => p.id !== id) })),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setMoneySubTab: (tab) => set({ moneySubTab: tab }),
       setWealthSubTab: (tab) => set({ wealthSubTab: tab }),
@@ -94,6 +97,7 @@ export const useAppStore = create(
         balancesHidden: s.balancesHidden,
         showLiabilities: s.showLiabilities,
         biometricEnabled: s.biometricEnabled,
+        presets: s.presets,
       }),
     }
   )

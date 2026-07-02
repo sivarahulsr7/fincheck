@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Check, ChevronDown } from 'lucide-react'
+import { Check, Bookmark, X } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
+import { useAppStore } from '../../store/useAppStore'
 import { CATEGORIES } from '../../utils/constants'
 import { todayISO } from '../../utils/formatters'
 import CategoryIcon from '../common/CategoryIcon'
@@ -8,6 +9,7 @@ import DatePicker from '../common/DatePicker'
 
 export default function TransactionForm({ type: initialType = 'expense', transaction, onClose }) {
   const { accounts, liabilities, assets, addTransaction, updateTransaction } = useFinanceStore()
+  const { presets, addPreset, removePreset } = useAppStore()
   const editing = !!transaction
   const [type, setType] = useState(transaction?.type || initialType)
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : '')
@@ -29,6 +31,23 @@ export default function TransactionForm({ type: initialType = 'expense', transac
     setTagInput('')
   }
   const removeTag = (t) => setTags(tags.filter((x) => x !== t))
+
+  const applyPreset = (p) => {
+    setType(p.type || 'expense')
+    setAmount(p.amount != null ? String(p.amount) : '')
+    setDescription(p.description || '')
+    setCategoryId(p.categoryId || '')
+    setAccountId(p.accountId || accounts[0]?.id || '')
+    if (p.categoryId !== 'emi') setLiabilityId('')
+    if (p.categoryId !== 'investment') setAssetId('')
+  }
+  const saveAsPreset = () => {
+    const cat = CATEGORIES.find((c) => c.id === categoryId)
+    addPreset({
+      label: description || cat?.name || type,
+      type, amount: Number(amount) || null, description, categoryId, accountId,
+    })
+  }
 
   const cats = CATEGORIES.filter((c) => {
     if (type === 'transfer') return false
@@ -82,6 +101,18 @@ export default function TransactionForm({ type: initialType = 'expense', transac
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Quick-add presets (TXN-5) — only when creating */}
+      {!editing && presets.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1">
+          {presets.map((p) => (
+            <div key={p.id} className="flex items-center gap-1 flex-shrink-0 bg-card-2 border border-card-border rounded-full pl-3 pr-1 py-1">
+              <button onClick={() => applyPreset(p)} className="text-xs text-gray-200 whitespace-nowrap">{p.label}</button>
+              <button onClick={() => removePreset(p.id)} className="text-gray-600 p-0.5"><X size={12} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Type selector */}
       <div className="flex gap-1 p-1 bg-card-2 rounded-xl">
         {['expense', 'income', 'transfer'].map((t) => (
@@ -232,6 +263,14 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all flex items-center justify-center gap-2 ${valid ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
         {saving ? 'Saving...' : <><Check size={16} /> {editing ? 'Update Transaction' : 'Save Transaction'}</>}
       </button>
+
+      {/* Save as preset (TXN-5) — only when creating a valid non-transfer txn */}
+      {!editing && valid && type !== 'transfer' && (
+        <button onClick={saveAsPreset}
+          className="flex items-center justify-center gap-1.5 text-gray-400 text-xs py-1">
+          <Bookmark size={13} /> Save as quick-add preset
+        </button>
+      )}
     </div>
   )
 }
