@@ -22,6 +22,7 @@ export const useAppStore = create(
       wealthSubTab: 'assets',
       presets: [], // quick-add transaction templates (TXN-5)
       netWorthGoal: null, // { target: number, date: 'YYYY-MM-DD' } (NW-2)
+      allocationTargets: {}, // { [assetType]: percent } (AST-5)
 
       // Store a salted hash, never the raw PIN (falls back to plaintext only
       // when crypto.subtle is unavailable, e.g. a non-secure context).
@@ -85,6 +86,7 @@ export const useAppStore = create(
       addPreset: (p) => set((s) => ({ presets: [...s.presets, { ...p, id: crypto.randomUUID() }] })),
       removePreset: (id) => set((s) => ({ presets: s.presets.filter((p) => p.id !== id) })),
       setNetWorthGoal: (goal) => set({ netWorthGoal: goal }),
+      setAllocationTargets: (t) => set({ allocationTargets: t }),
       setActiveTab: (tab) => set({ activeTab: tab }),
       setMoneySubTab: (tab) => set({ moneySubTab: tab }),
       setWealthSubTab: (tab) => set({ wealthSubTab: tab }),
@@ -101,6 +103,7 @@ export const useAppStore = create(
         biometricEnabled: s.biometricEnabled,
         presets: s.presets,
         netWorthGoal: s.netWorthGoal,
+        allocationTargets: s.allocationTargets,
       }),
     }
   )
