@@ -11,7 +11,9 @@ import AssetForm from '../../components/forms/AssetForm'
 const STALE_MS = 45 * 24 * 3600 * 1000
 
 export default function Assets() {
-  const { assets, recurring, deleteAsset, updateAsset } = useFinanceStore()
+  const { assets, recurring, transactions, deleteAsset, updateAsset } = useFinanceStore()
+  const incomeFor = (id) => transactions.filter((t) => t.incomeAssetId === id).reduce((s, t) => s + Number(t.amount || 0), 0)
+  const totalIncome = transactions.filter((t) => t.incomeAssetId).reduce((s, t) => s + Number(t.amount || 0), 0)
   const [showForm, setShowForm] = useState(false)
   const [editAsset, setEditAsset] = useState(null)
   const [catFilter, setCatFilter] = useState('all')
@@ -71,6 +73,9 @@ export default function Assets() {
           <span className={`text-xs font-medium ${pnlPct >= 0 ? 'text-green' : 'text-red'}`}>
             ({fmtPct(pnlPct)})
           </span>
+          {totalIncome > 0 && (
+            <span className="text-xs text-gray-400 ml-auto">Income <Amount value={totalIncome} className="text-green" /></span>
+          )}
         </div>
       </div>
 
@@ -119,6 +124,9 @@ export default function Assets() {
                     )}
                     {sip > 0 && (
                       <span className="text-[10px] text-green flex items-center gap-0.5"><Repeat size={9} /> SIP ₹{sip.toLocaleString('en-IN')}/mo</span>
+                    )}
+                    {incomeFor(a.id) > 0 && (
+                      <span className="text-[10px] text-gray-500">₹{incomeFor(a.id).toLocaleString('en-IN')} income</span>
                     )}
                     {stale && <span className="text-[10px] text-orange-400">stale</span>}
                   </div>

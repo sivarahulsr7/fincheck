@@ -21,6 +21,7 @@ export default function TransactionForm({ type: initialType = 'expense', transac
   const [note, setNote] = useState(transaction?.note || transaction?.notes || '')
   const [liabilityId, setLiabilityId] = useState(transaction?.liabilityId || '')
   const [assetId, setAssetId] = useState(transaction?.assetId || '')
+  const [incomeAssetId, setIncomeAssetId] = useState(transaction?.incomeAssetId || '') // dividend/interest source (informational)
   const [tags, setTags] = useState(transaction?.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [saving, setSaving] = useState(false)
@@ -114,6 +115,9 @@ export default function TransactionForm({ type: initialType = 'expense', transac
         // links to nothing specific (stored as null).
         liabilityId: type === 'expense' && categoryId === 'emi' && liabilityId && liabilityId !== 'other' ? liabilityId : null,
         assetId: type === 'expense' && categoryId === 'investment' && assetId && assetId !== 'other' ? assetId : null,
+        // Dividend/interest source — informational only (does NOT change the
+        // asset's value; the cash just lands in the account as income).
+        incomeAssetId: type === 'income' && categoryId === 'returns' && incomeAssetId ? incomeAssetId : null,
         tags,
         date, note,
       }
@@ -284,6 +288,19 @@ export default function TransactionForm({ type: initialType = 'expense', transac
               Adds this amount to the asset's invested value and current value.
             </p>
           )}
+        </div>
+      )}
+
+      {/* Dividend/interest source — optional, for income → Inv. Returns (AST-6) */}
+      {type === 'income' && categoryId === 'returns' && assets.length > 0 && (
+        <div>
+          <label className={labelCls}>From which asset? (optional)</label>
+          <select value={incomeAssetId} onChange={(e) => setIncomeAssetId(e.target.value)}
+            className={`${inputCls} cursor-pointer`}>
+            <option value="">Not asset-specific</option>
+            {assets.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+          {incomeAssetId && <p className="text-[11px] text-gray-500 mt-1">Tracked as income received from this asset (doesn't change its value).</p>}
         </div>
       )}
 
