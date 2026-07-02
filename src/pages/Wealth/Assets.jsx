@@ -1,18 +1,34 @@
 import { useState } from 'react'
-import { Plus, Edit2, Trash2 } from 'lucide-react'
+import { Plus, Edit2, Trash2, RefreshCw, Check, Repeat } from 'lucide-react'
 import { useFinanceStore } from '../../store/useFinanceStore'
 import Amount from '../../components/common/Amount'
 import { ASSET_TYPES } from '../../utils/constants'
 import { fmtPct } from '../../utils/formatters'
+import { cagrPct } from '../../utils/assetReturns'
 import BottomSheet from '../../components/common/BottomSheet'
 import AssetForm from '../../components/forms/AssetForm'
 
+const STALE_MS = 45 * 24 * 3600 * 1000
+
 export default function Assets() {
-  const { assets, deleteAsset } = useFinanceStore()
+  const { assets, recurring, deleteAsset, updateAsset } = useFinanceStore()
   const [showForm, setShowForm] = useState(false)
   const [editAsset, setEditAsset] = useState(null)
   const [catFilter, setCatFilter] = useState('all')
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [priceTarget, setPriceTarget] = useState(null) // asset being value-updated
+  const [priceVal, setPriceVal] = useState('')
+
+  // SIP: monthly recurring contribution linked to an asset (AST-2).
+  const sipFor = (id) => recurring
+    .filter((r) => r.assetId === id && r.isActive !== false && r.frequency === 'monthly')
+    .reduce((s, r) => s + Number(r.amount || 0), 0)
+
+  const openPrice = (a) => { setPriceTarget(a); setPriceVal(String(a.currentValue ?? a.investedAmount ?? '')) }
+  const savePrice = async () => {
+    if (priceTarget && Number(priceVal) >= 0) await updateAsset(priceTarget.id, { currentValue: Number(priceVal) })
+    setPriceTarget(null); setPriceVal('')
+  }
 
   const totalInvested = assets.reduce((s, a) => s + (a.investedAmount || 0), 0)
   const totalCurrent  = assets.reduce((s, a) => s + (a.currentValue || a.investedAmount || 0), 0)
@@ -85,22 +101,35 @@ export default function Assets() {
           </div>
           {filtered.map((a) => {
             const at = getAssetType(a.assetType)
-            const itemPnl = (a.currentValue || a.investedAmount || 0) - (a.investedAmount || 0)
+            const curVal = a.currentValue || a.investedAmount || 0
+            const itemPnl = curVal - (a.investedAmount || 0)
             const itemPnlP = a.investedAmount > 0 ? (itemPnl / a.investedAmount) * 100 : 0
+            const cagr = cagrPct(a.investedAmount, curVal, a.purchaseDate)
+            const sip = sipFor(a.id)
+            const stale = typeof a.updatedAt === 'number' && (Date.now() - a.updatedAt) > STALE_MS
             return (
               <div key={a.id} className="flex items-center gap-3 px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-white truncate">{a.name}</p>
-                  {at && (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full border" style={{ color: at.color, borderColor: at.color + '44' }}>
-                      {at.name}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                    {at && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border" style={{ color: at.color, borderColor: at.color + '44' }}>
+                        {at.name}
+                      </span>
+                    )}
+                    {sip > 0 && (
+                      <span className="text-[10px] text-green flex items-center gap-0.5"><Repeat size={9} /> SIP ₹{sip.toLocaleString('en-IN')}/mo</span>
+                    )}
+                    {stale && <span className="text-[10px] text-orange-400">stale</span>}
+                  </div>
                 </div>
                 <div className="text-right">
-                  <Amount value={a.currentValue || a.investedAmount || 0} className="text-sm text-white" />
+                  <button onClick={() => openPrice(a)} className="flex items-center gap-1 justify-end">
+                    <Amount value={curVal} className="text-sm text-white" />
+                    <RefreshCw size={11} className="text-gray-600" />
+                  </button>
                   <p className={`text-[10px] font-medium ${itemPnlP >= 0 ? 'text-green' : 'text-red'}`}>
-                    {fmtPct(itemPnlP)}
+                    {fmtPct(itemPnlP)}{cagr != null ? ` · ${fmtPct(cagr)} p.a.` : ''}
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -116,6 +145,23 @@ export default function Assets() {
       <BottomSheet open={showForm} onClose={() => { setShowForm(false); setEditAsset(null) }}
         title={editAsset ? 'Edit Asset' : 'Add Asset'}>
         <AssetForm asset={editAsset} onClose={() => { setShowForm(false); setEditAsset(null) }} />
+      </BottomSheet>
+
+      {/* Quick value update (AST-3) */}
+      <BottomSheet open={!!priceTarget} onClose={() => { setPriceTarget(null); setPriceVal('') }} title="Update current value">
+        <div className="flex flex-col gap-4">
+          <p className="text-gray-400 text-sm">Latest value of "{priceTarget?.name}"</p>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
+            <input type="number" inputMode="decimal" placeholder="0" value={priceVal} autoFocus
+              onChange={(e) => setPriceVal(e.target.value)}
+              className="w-full bg-card-2 border border-card-border rounded-xl pl-8 pr-4 py-3 text-white text-lg font-semibold outline-none" />
+          </div>
+          <button onClick={savePrice} disabled={!(Number(priceVal) >= 0)}
+            className={`w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 ${Number(priceVal) >= 0 ? 'bg-green text-[#1a3d29]' : 'bg-card-2 text-gray-600'}`}>
+            <Check size={16} /> Update value
+          </button>
+        </div>
       </BottomSheet>
 
       <BottomSheet open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title="Delete Asset?">
