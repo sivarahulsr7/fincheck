@@ -86,47 +86,46 @@ export default function TransactionForm({ type: initialType = 'expense', transac
       (type === 'transfer' ? accountId && toAccountId && accountId !== toAccountId : categoryId && accountId) &&
       date && date <= todayISO() && linkOk
 
-  const handleSave = async () => {
+  // Optimistic save: fire the write and close immediately. Firestore's local
+  // cache updates the UI instantly; the server round-trip finishes in the
+  // background (and queues offline), so the form never blocks on the network.
+  const handleSave = () => {
     if (!valid || saving) return
     setSaving(true)
-    try {
-      if (splitMode) {
-        // One transaction per line, sharing a group id. The account is debited
-        // by the sum of the lines (each line debits its own portion).
-        const groupId = crypto.randomUUID()
-        for (const l of splitLines) {
-          const cat = CATEGORIES.find((c) => c.id === l.categoryId)
-          await addTransaction({
-            type: 'expense', amount: Number(l.amount),
-            description: description || cat?.name || 'Split',
-            categoryId: l.categoryId, accountId, toAccountId: null,
-            liabilityId: null, assetId: null, tags, splitGroupId: groupId,
-            date, note,
-          })
-        }
-        onClose?.()
-        return
+    if (splitMode) {
+      // One transaction per line, sharing a group id. The account is debited
+      // by the sum of the lines (each line debits its own portion).
+      const groupId = crypto.randomUUID()
+      for (const l of splitLines) {
+        const cat = CATEGORIES.find((c) => c.id === l.categoryId)
+        addTransaction({
+          type: 'expense', amount: Number(l.amount),
+          description: description || cat?.name || 'Split',
+          categoryId: l.categoryId, accountId, toAccountId: null,
+          liabilityId: null, assetId: null, tags, splitGroupId: groupId,
+          date, note,
+        }).catch(() => {})
       }
-      const data = {
-        type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
-        categoryId: type === 'transfer' ? null : categoryId,
-        accountId, toAccountId: type === 'transfer' ? toAccountId : null,
-        // Links are category-driven. "other" is a valid explicit choice that
-        // links to nothing specific (stored as null).
-        liabilityId: type === 'expense' && categoryId === 'emi' && liabilityId && liabilityId !== 'other' ? liabilityId : null,
-        assetId: type === 'expense' && categoryId === 'investment' && assetId && assetId !== 'other' ? assetId : null,
-        // Dividend/interest source — informational only (does NOT change the
-        // asset's value; the cash just lands in the account as income).
-        incomeAssetId: type === 'income' && categoryId === 'returns' && incomeAssetId ? incomeAssetId : null,
-        tags,
-        date, note,
-      }
-      if (editing) await updateTransaction(transaction.id, data)
-      else await addTransaction(data)
       onClose?.()
-    } finally {
-      setSaving(false)
+      return
     }
+    const data = {
+      type, amount: Number(amount), description: description || (selectedCat?.name || 'Transfer'),
+      categoryId: type === 'transfer' ? null : categoryId,
+      accountId, toAccountId: type === 'transfer' ? toAccountId : null,
+      // Links are category-driven. "other" is a valid explicit choice that
+      // links to nothing specific (stored as null).
+      liabilityId: type === 'expense' && categoryId === 'emi' && liabilityId && liabilityId !== 'other' ? liabilityId : null,
+      assetId: type === 'expense' && categoryId === 'investment' && assetId && assetId !== 'other' ? assetId : null,
+      // Dividend/interest source — informational only (does NOT change the
+      // asset's value; the cash just lands in the account as income).
+      incomeAssetId: type === 'income' && categoryId === 'returns' && incomeAssetId ? incomeAssetId : null,
+      tags,
+      date, note,
+    }
+    const p = editing ? updateTransaction(transaction.id, data) : addTransaction(data)
+    Promise.resolve(p).catch(() => {})
+    onClose?.()
   }
 
   const inputCls = 'w-full bg-card-2 border border-card-border rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-green transition-colors'
