@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 
 const firebaseConfig = {
@@ -15,11 +15,14 @@ export const FIREBASE_CONFIGURED = true
 
 const app = initializeApp(firebaseConfig)
 
-// persistentLocalCache: onSnapshot fires instantly from IndexedDB cache,
-// then again when fresh data arrives — makes second+ loads feel instant
+// Offline-first: persistentLocalCache keeps a full IndexedDB copy, so reads and
+// writes work fully offline and queue for automatic reconciliation when the
+// connection returns. Multi-tab manager keeps several open tabs consistent.
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(),
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
 })
+// Auth persists to IndexedDB by default, so the signed-in session (and thus the
+// PIN-gated app) restores offline without a network round-trip.
 export const auth = getAuth(app)
 
 export default app
