@@ -9,11 +9,17 @@ useful.** Pick items by ID (e.g. "do TXN-1, LIA-2, REC-1") and I'll implement.
 - Effort: **S** (hours) · **M** (~a day) · **L** (multi-day / data-model change)
 - 💰 = needs care to stay 100% free (flagged); everything else is free-safe.
 
-## Build status (selected by user)
-- ✅ **Shipped:** REC-1..4 · **TXN-1,2,3,5,6,7** · INS-1..5 · **BUD-1..6** (alerts, rollover, overall, templates, trend, %-of-income)
-- ⏳ **Queued (in order):** NW-1,2,3 → AST-1,2,3,5,6 (+AST-4 only if a free price API is viable)
-- ❌ **Dropped (needs paid):** TXN-4 (receipt storage), INS-6 (PDF export)
-Each item ships as its own tested commit.
+## Build status (selected by user) — ALL SHIPPED ✅
+- ✅ REC-1..4 (recurring engine, upcoming, auto-link, reminders)
+- ✅ TXN-1,2,3,5,6,7 (split, range filters, tags, presets, undo, bulk edit)
+- ✅ INS-1..5 (savings rate, movers, top spends, forecast, year summary + range)
+- ✅ BUD-1..6 (near-limit alerts, rollover, overall budget, templates, trend, %-of-income)
+- ✅ NW-1,2,3 (real monthly snapshots, goal + trajectory, assets-vs-liabilities view)
+- ✅ AST-1,2,3,5,6 (returns/CAGR, SIP surfacing, quick value update + stale, target allocation/rebalancing, dividends) + AST-4 crypto live prices (CoinGecko, free)
+- ❌ Dropped (would need paid): TXN-4 (receipt storage), INS-6 (PDF export), AST-4 for MF/stocks (no free-forever API)
+
+**Action needed once:** redeploy Firestore rules — a new `snapshots` collection was added.
+`npx firebase-tools deploy --only firestore:rules`
 
 ---
 
