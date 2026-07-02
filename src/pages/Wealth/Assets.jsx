@@ -20,6 +20,32 @@ export default function Assets() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [priceTarget, setPriceTarget] = useState(null) // asset being value-updated
   const [priceVal, setPriceVal] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshMsg, setRefreshMsg] = useState('')
+
+  // Live crypto prices via CoinGecko (free, no key, CORS-enabled). Only crypto
+  // has a genuinely free-forever API; MF/stocks stay manual.
+  const cryptoLive = assets.filter((a) => a.assetType === 'crypto' && a.coinId && a.units)
+  const refreshPrices = async () => {
+    if (!cryptoLive.length || refreshing) return
+    setRefreshing(true); setRefreshMsg('')
+    try {
+      const ids = [...new Set(cryptoLive.map((a) => a.coinId))].join(',')
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(ids)}&vs_currencies=inr`)
+      if (!res.ok) throw new Error('fetch failed')
+      const data = await res.json()
+      let n = 0
+      for (const a of cryptoLive) {
+        const price = data[a.coinId]?.inr
+        if (price) { await updateAsset(a.id, { currentValue: Math.round(a.units * price) }); n++ }
+      }
+      setRefreshMsg(n ? `Updated ${n} crypto asset${n !== 1 ? 's' : ''}` : 'No matching prices found (check the CoinGecko IDs).')
+    } catch {
+      setRefreshMsg('Could not fetch prices — check your connection.')
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
   // SIP: monthly recurring contribution linked to an asset (AST-2).
   const sipFor = (id) => recurring
@@ -51,10 +77,19 @@ export default function Assets() {
           <h2 className="text-lg font-bold text-white">Assets</h2>
           <p className="text-xs text-gray-500">{assets.length} assets</p>
         </div>
-        <button onClick={openAdd} className="w-9 h-9 rounded-xl bg-green flex items-center justify-center text-[#1a3d29]">
-          <Plus size={18} />
-        </button>
+        <div className="flex items-center gap-2">
+          {cryptoLive.length > 0 && (
+            <button onClick={refreshPrices} disabled={refreshing}
+              className="h-9 px-3 rounded-xl bg-card-2 flex items-center gap-1.5 text-gray-300 text-xs font-medium">
+              <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} /> Refresh crypto
+            </button>
+          )}
+          <button onClick={openAdd} className="w-9 h-9 rounded-xl bg-green flex items-center justify-center text-[#1a3d29]">
+            <Plus size={18} />
+          </button>
+        </div>
       </div>
+      {refreshMsg && <p className="text-[11px] text-gray-400 mb-3">{refreshMsg}</p>}
 
       <div className="bg-card rounded-2xl border border-card-border p-4 mb-4">
         <div className="grid grid-cols-2 gap-4 mb-3">

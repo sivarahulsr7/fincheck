@@ -14,6 +14,7 @@ export default function AssetForm({ asset, onClose }) {
   const [units, setUnits] = useState(asset?.units || '')
   const [purchaseDate, setPurchaseDate] = useState(asset?.purchaseDate || todayISO())
   const [notes, setNotes] = useState(asset?.notes || '')
+  const [coinId, setCoinId] = useState(asset?.coinId || '') // CoinGecko id for crypto (AST-4)
   const [saving, setSaving] = useState(false)
 
   const valid = name && investedAmount && Number(investedAmount) > 0
@@ -27,6 +28,7 @@ export default function AssetForm({ asset, onClose }) {
         investedAmount: Number(investedAmount),
         currentValue: currentValue ? Number(currentValue) : Number(investedAmount),
         units: units ? Number(units) : null,
+        coinId: assetType === 'crypto' ? (coinId.trim().toLowerCase() || null) : null,
         purchaseDate, notes,
       }
       if (asset?.id) await updateAsset(asset.id, data)
@@ -79,10 +81,19 @@ export default function AssetForm({ asset, onClose }) {
       </div>
 
       <div>
-        <label className={labelCls}>Units (optional)</label>
+        <label className={labelCls}>Units {assetType === 'crypto' ? '(for live price)' : '(optional)'}</label>
         <input type="number" inputMode="decimal" placeholder="No. of units" value={units}
           onChange={(e) => setUnits(e.target.value)} className={inputCls} />
       </div>
+
+      {assetType === 'crypto' && (
+        <div>
+          <label className={labelCls}>CoinGecko ID (optional, for live price)</label>
+          <input type="text" placeholder="e.g. bitcoin, ethereum, solana" value={coinId}
+            onChange={(e) => setCoinId(e.target.value)} className={inputCls} />
+          <p className="text-[11px] text-gray-500 mt-1">With units + this ID, tap “Refresh crypto” on Assets to pull the live price (free, CoinGecko).</p>
+        </div>
+      )}
 
       <div>
         <label className={labelCls}>Purchase Date</label>
