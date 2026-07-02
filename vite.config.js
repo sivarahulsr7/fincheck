@@ -33,14 +33,27 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Serve the cached app shell for any route when offline (SPA).
+        navigateFallback: '/fincheck/index.html',
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
+          // Cache the web font so text renders correctly offline after first load.
           {
-            urlPattern: /^https:\/\/firestore\.googleapis\.com/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'firebase-cache', networkTimeoutSeconds: 5 }
-          }
-        ]
+            urlPattern: ({ url }) => url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // NOTE: Firestore is deliberately NOT cached by the service worker.
+          // Its SDK manages offline via persistentLocalCache; intercepting its
+          // transport here would add latency and can break the realtime channel.
+        ],
       }
     })
   ]
