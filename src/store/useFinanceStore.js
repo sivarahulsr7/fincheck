@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore'
 import { db, FIREBASE_CONFIGURED, auth } from '../firebase'
 import { DEFAULT_ACCOUNTS, CATEGORIES, ASSET_TYPES } from '../utils/constants'
-import { todayISO, nextRecurrence } from '../utils/formatters'
+import { todayISO, nextRecurrence, monthKey } from '../utils/formatters'
 
 // ─── Path scoping ─────────────────────────────────────────────────────────────
 // Collections were originally top-level (flat). Per-user isolation moves them
@@ -18,7 +18,7 @@ import { todayISO, nextRecurrence } from '../utils/formatters'
 let scopedUid = null
 const setScope = (uid) => { scopedUid = uid || null }
 
-const DATA_COLLECTIONS = ['accounts', 'transactions', 'recurring', 'assets', 'liabilities', 'goals', 'budgets']
+const DATA_COLLECTIONS = ['accounts', 'transactions', 'recurring', 'assets', 'liabilities', 'goals', 'budgets', 'snapshots']
 
 const colRef = (name) => scopedUid ? collection(db, 'users', scopedUid, name) : collection(db, name)
 const docRef = (col, id) => scopedUid ? doc(db, 'users', scopedUid, col, id) : doc(db, col, id)
@@ -128,6 +128,7 @@ export const useFinanceStore = create(
       liabilities: [],
       goals: [],
       budgets: [],
+      snapshots: [],
       categories: CATEGORIES,
       loading: true,
       initialized: false,
@@ -518,6 +519,32 @@ export const useFinanceStore = create(
           + assets.reduce((s, a) => s + bal(a.currentValue || a.investedAmount || 0), 0)
           - liabilities.reduce((s, l) => s + bal(l.outstandingAmount || 0), 0)
       },
+
+      // Persist a real net-worth snapshot for the current month (NW-1). The doc
+      // id is the month key, so it's upserted — the month's value evolves and
+      // the final value persists once the month ends. Assets side = investable
+      // assets + positive account balances; liabilities = outstanding.
+      recordSnapshot: async () => {
+        const { accounts, assets, liabilities } = get()
+        const bal = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0)
+        const accountsTotal = accounts.reduce((s, a) => s + bal(a.balance), 0)
+        const liquid = accounts.reduce((s, a) => s + (bal(a.balance) > 0 ? bal(a.balance) : 0), 0)
+        const assetsHeld = assets.reduce((s, a) => s + bal(a.currentValue || a.investedAmount || 0), 0)
+        const liabTotal = liabilities.reduce((s, l) => s + bal(l.outstandingAmount || 0), 0)
+        const mk = monthKey()
+        const snap = {
+          id: mk, monthKey: mk, date: todayISO(),
+          assets: liquid + assetsHeld,
+          liabilities: liabTotal,
+          netWorth: accountsTotal + assetsHeld - liabTotal,
+          updatedAt: Date.now(),
+        }
+        if (!FIREBASE_CONFIGURED) {
+          set((s) => ({ snapshots: [...s.snapshots.filter((x) => x.id !== mk), snap] }))
+          return
+        }
+        await setDoc(docRef('snapshots', mk), snap)
+      },
     }),
     {
       name: 'fincheck-finance',
@@ -530,6 +557,7 @@ export const useFinanceStore = create(
         liabilities:  FIREBASE_CONFIGURED ? [] : s.liabilities,
         goals:        FIREBASE_CONFIGURED ? [] : s.goals,
         budgets:      FIREBASE_CONFIGURED ? [] : s.budgets,
+        snapshots:    FIREBASE_CONFIGURED ? [] : s.snapshots,
       }),
     }
   )

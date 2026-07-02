@@ -66,6 +66,7 @@ export default function App() {
     ;(async () => {
       try { await store.normalizeAssetTypes() } catch { /* retried next launch */ }
       try { await store.postDueRecurring() } catch { /* retried next launch */ }
+      try { await store.recordSnapshot() } catch { /* retried next launch */ }
     })()
   }, [loading, user])
 
